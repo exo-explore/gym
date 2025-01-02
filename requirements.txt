@@ -1,0 +1,14 @@
+torch
+torchvision
+torchtext
+portalocker
+numpy
+pandas
+matplotlib
+scikit-learn
+tqdm
+Pillow
+wandb
+transformers
+datasets
+wandb
