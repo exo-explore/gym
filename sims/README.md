@@ -1,6 +1,6 @@
 # Simulators
 
-Simulators are at the core of exo gym. They are responsible for generating the environment for virtual distributed system. The main sim that's implemented right now is 'dilco-sim' which is a simulator for the [DiLoCo algorithm](https://arxiv.org/abs/2311.08105). Credit for implementation of the 1st verion Dilco-sim goes to [Matthew Reed](https://github.com/matttreed/diloco-sim) funded by exo. We used a fork of the original implementation from [Jianbo27](https://github.com/jianbo27/diloco-sim) as it contained bug fixes and improvements over the original repository.
+Simulators are at the core of exo gym. They are responsible for generating the environment for a virtual distributed system. The main sim that's implemented right now is 'dilco-sim' which is a simulator for the [DiLoCo algorithm](https://arxiv.org/abs/2311.08105). Credit for implementation of the 1st version Dilco-sim goes to [Matthew Reed](https://github.com/matttreed/diloco-sim) funded by exo. We used a fork of the original implementation from [Jianbo27](https://github.com/jianbo27/diloco-sim) as it contained bug fixes and improvements over the original repository.
 
 
 ## Types of simulators
@@ -46,7 +46,7 @@ The full list of available arguments is shown below:
 | `diloco_interval`    | `int`                  | `500`                       | Number of local steps before synchronizing the models.                          |
 | `batch_size`         | `int`                  | `16`                        | Batch size for training and evaluation.                                         |
 | `eval_dataset`       | `Optional[Dataset]` | `None`                       | The dataset for evaluation. Optional. Should be a subclass of `torch.utils.data.Dataset`.                                       |
-| `optimizer_cls`      | `Type[Optimizer]` | `torch.optim.AdamW`         | Inner Optimizer class for training. `AdamW` is default per recommendation of DiLiCo.                                            |
+| `optimizer_cls`      | `Type[Optimizer]` | `torch.optim.AdamW`         | Inner Optimizer class for training. `AdamW` is the default per recommendation of DiLiCo.                                            |
 | `ckpt_interval`      | `Optional[int]`        | `None`                      | Number of outer steps between model checkpoints. Default is `None`.             |
 | `eval_iters`         | `int`                  | `50`                        | Number of iterations to use for evaluation. Loss is approximated by `eval_iters * batch_size` samples. Default is `50`.                   |
 | `save_dir`           | `Optional[str]`        | `None`                      | Directory to save model checkpoints. Default is `None`.                        |
