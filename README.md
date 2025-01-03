@@ -1,4 +1,4 @@
-# EXO gym (v0.1)
+# EXO Gym (v0.1)
 Accelerating distributed AI research
 
 EXO Gym is an open-source Python toolkit that facilitates distributed AI research.
