@@ -1,6 +1,7 @@
-# exo gym: Accelerating Distributed AI Research
+# EXO gym (v0.1)
+Accelerating distributed AI research
 
-exo gym is an open-source Python toolkit that facilitates distributed AI research.
+EXO Gym is an open-source Python toolkit that facilitates distributed AI research.
 It contains an evolving collection of simulators that run on a single machine but simulate a distributed setup. For example, diloco-sim simulates running the DiLoCo algorithm by training on N nodes, but it can all run locally on a single machine. The goal is to abstract away the complexity of maintaining a real distributed system and allow researchers to focus on algorithmic innovation. 
 
 ## Getting Started
