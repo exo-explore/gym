@@ -5,12 +5,13 @@ import numpy as np
 
 from exogym.train_node import TrainNode
 from exogym.strategy import Strategy
+from exogym.strategy.optim import ensure_optim_spec, OptimSpec
 
 import os
 from abc import ABC, abstractmethod
 import copy
 from dataclasses import dataclass
-from typing import Tuple, Optional, List, Any, Dict, Union, Callable
+from typing import Tuple, Optional, List, Any, Dict, Union, Callable, Sequence
 from collections import OrderedDict
 
 # def print_dataset_size(dataset: torch.utils.data.Dataset):
@@ -46,10 +47,13 @@ class TrainingConfig:
   checkpoint_interval: int = 100
   trainer_class: type = None
   kwargs: Dict[str, Any] = None
+  opt: Any = None
 
   def __post_init__(self):
     if self.kwargs is None:
       self.kwargs = {}
+    if self.opt is not None:
+      self.kwargs["opt"] = self.opt
 
 
 def _worker(rank: int, config: TrainingConfig, result_queue: mp.Queue):
@@ -79,7 +83,8 @@ def _worker(rank: int, config: TrainingConfig, result_queue: mp.Queue):
   trainer.autocast = config.autocast
   trainer.checkpoint_interval = config.checkpoint_interval
   trainer.kwargs = config.kwargs
-  
+  trainer.opt = getattr(config, "opt", None)
+
   # Run the training process and get the final model state dict
   final_model_state = trainer._fit_process(rank)
   
@@ -180,12 +185,42 @@ class Trainer:
           val_interval: int = 100,
           autocast: bool = False,
           checkpoint_interval: int = 100,
+          opt: Union[str, OptimSpec, Sequence[Union[str, OptimSpec]], None] = None,
           **kwargs):
     """
     Train the model. For single process training (num_nodes=1), runs directly.
     For multi-process training, delegates to launch_ddp for notebook safety.
     Returns the final trained model (averaged across nodes for multi-node training).
     """
+    inner_optim = outer_optim = None
+    if opt is not None:
+      if isinstance(opt, (str, OptimSpec)):
+        inner_optim = ensure_optim_spec(opt)
+      elif isinstance(opt, Sequence) and not isinstance(opt, str):
+        if len(opt) == 1:
+          inner_optim = ensure_optim_spec(opt[0])
+        elif len(opt) == 2:
+          inner_optim = ensure_optim_spec(opt[0])
+          outer_optim = ensure_optim_spec(opt[1])
+        else:
+          raise ValueError("If 'opt' is a sequence, it must have length 1 or 2 (for inner and outer optimizers).")
+      else:
+        raise TypeError("'opt' must be a string, OptimSpec, or a sequence of up to 2 such values.")
+
+    if outer_optim is not None:
+      if not (hasattr(strategy, 'inner_optim_spec') and hasattr(strategy, 'communicator') and hasattr(strategy.communicator, 'outer_optim_spec')):
+        raise ValueError("Strategy does not support both inner and outer optimizers, but two optimizers were provided.")
+      strategy.inner_optim_spec = inner_optim
+      strategy.communicator.outer_optim_spec = outer_optim
+    elif inner_optim is not None:
+      # Prefer inner_optim_spec if present, else optim_spec
+      if hasattr(strategy, 'inner_optim_spec'):
+        strategy.inner_optim_spec = inner_optim
+      elif hasattr(strategy, 'optim_spec'):
+        strategy.optim_spec = inner_optim
+      else:
+        raise ValueError("Strategy does not support an inner optimizer.")
+
     # Store parameters
     self.num_epochs = num_epochs
     self.max_steps = max_steps
@@ -201,6 +236,7 @@ class Trainer:
     self.autocast = autocast
     self.checkpoint_interval = checkpoint_interval
     self.kwargs = kwargs
+    self.opt = opt
 
     if num_nodes == 1:
       # Single process mode - run directly for debugging
@@ -239,7 +275,7 @@ class Trainer:
         autocast=autocast,
         checkpoint_interval=checkpoint_interval,
         trainer_class=self.__class__,
-        kwargs=kwargs
+        kwargs={**kwargs, "opt": self.opt} if self.opt is not None else kwargs,
       )
       averaged_state_dict = launch(config)
       
