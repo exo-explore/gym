@@ -5,6 +5,7 @@ import torch.multiprocessing as mp
 from exogym.train_node import TrainNode
 from exogym.strategy import Strategy
 from exogym.common import TrainConfig
+from exogym.aux.utils import print_dataset_size, _average_model_states
 
 import os
 from abc import abstractmethod
@@ -13,13 +14,6 @@ from dataclasses import dataclass
 from typing import Optional, List, Any, Dict, Union, Callable
 from collections import OrderedDict
 
-def print_dataset_size(dataset: torch.utils.data.Dataset):
-    import pickle
-    import io
-
-    buffer = io.BytesIO()
-    pickle.dump(dataset, buffer, protocol=pickle.HIGHEST_PROTOCOL)
-    print(f"Dataset size: {buffer.tell() // 1024 // 1024} MB")
 
 def _build_connection(config: TrainConfig):
     """
@@ -63,24 +57,6 @@ def _build_connection(config: TrainConfig):
         raise ValueError(f"Invalid device type: {config.device}")
 
     print(f"Rank {config.rank} using device {config.device}")
-
-def _average_model_states(model_states: Dict[int, OrderedDict]) -> OrderedDict:
-    """
-    Average model state dictionaries from multiple processes.
-    """
-    if not model_states:
-        return None
-
-    averaged_state = OrderedDict()
-    first_state = list(model_states.values())[0]
-
-    for param_name in first_state.keys():
-        param_stack = torch.stack(
-            [state[param_name] for state in model_states.values()]
-        )
-        averaged_state[param_name] = torch.mean(param_stack, dim=0)
-
-    return averaged_state
 
 def _worker(rank: int, config: TrainConfig, result_queue: mp.Queue):
     """

@@ -209,3 +209,30 @@ def safe_log_dict(data: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
         safe_dict[safe_key] = extract_config(value)
 
     return safe_dict
+
+def print_dataset_size(dataset: torch.utils.data.Dataset):
+    import pickle
+    import io
+
+    buffer = io.BytesIO()
+    pickle.dump(dataset, buffer, protocol=pickle.HIGHEST_PROTOCOL)
+    print(f"Dataset size: {buffer.tell() // 1024 // 1024} MB")
+
+def _average_model_states(model_states: Dict[int, OrderedDict]) -> OrderedDict:
+    """
+    Average model state dictionaries from multiple processes.
+    """
+    if not model_states:
+        return None
+
+    averaged_state = OrderedDict()
+    first_state = list(model_states.values())[0]
+
+    for param_name in first_state.keys():
+        param_stack = torch.stack(
+            [state[param_name] for state in model_states.values()]
+        )
+        averaged_state[param_name] = torch.mean(param_stack, dim=0)
+
+    return averaged_state
+
