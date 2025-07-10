@@ -179,42 +179,4 @@ class Trainer:
         final_model.load_state_dict(averaged_state_dict)
         return final_model
 
-    def _fit_process(self, rank):
-        """
-        The core training logic that runs in each process.
-        Renamed from _fit and removed the spawn call.
-        Returns the final model state dict.
-        """
-        self.rank = rank
-
-        self.model = copy.deepcopy(self.model_orig).to(self.device)
-
-        self.strategy = copy.deepcopy(self.strategy)
-        self.strategy._init_node(self.model, self.rank, self.num_nodes)
-
-        # Handle dataset factory vs direct dataset for sampler creation
-        if callable(self.train_dataset):
-            # For dataset factory, we don't need a distributed sampler
-            # since the factory should return the appropriate subset for this rank
-            self.sampler = None
-        else:
-            # For direct dataset, use DistributedSampler as before
-            self.sampler = torch.utils.data.DistributedSampler(
-                self.train_dataset,
-                num_replicas=self.num_nodes,
-                rank=self.rank,
-                shuffle=self.shuffle,
-            )
-
-        sim = TrainNode(config)
-
-        final_state_dict = sim.train()
-
-        self._process_cleanup()
-
-        return final_state_dict
-
-    def _process_cleanup(self):
-        dist.destroy_process_group()
-
 
