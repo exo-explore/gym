@@ -230,10 +230,11 @@ def _average_model_states(model_states: Dict[int, OrderedDict]) -> OrderedDict:
     first_state = list(model_states.values())[0]
 
     for param_name in first_state.keys():
-        param_stack = torch.stack(
-            [state[param_name] for state in model_states.values()]
-        )
-        averaged_state[param_name] = torch.mean(param_stack, dim=0)
+        if first_state[param_name].dtype != torch.int64:
+            param_stack = torch.stack(
+                [state[param_name] for state in model_states.values()]
+            )
+            averaged_state[param_name] = torch.mean(param_stack, dim=0)
 
     return averaged_state
 
