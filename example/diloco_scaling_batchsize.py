@@ -1,11 +1,13 @@
-from exogym.trainer import LocalTrainer
+import torch
+import argparse
+
+from exogym.trainer import Trainer
 from exogym.strategy.optim import OptimSpec
 from exogym.strategy.diloco import DiLoCoStrategy
 from exogym.strategy.strategy import SimpleReduceStrategy
+from exogym.aux.utils import get_device
 
 from nanogpt import GPT, GPTConfig, get_dataset
-
-import torch
 
 MAX_NODES = 4
 H = 30
@@ -26,7 +28,7 @@ def main():
         block_size=1024,
         device="cpu",
         start_pc=0.0,
-        end_pc=0.005 * NUM_NODES ,
+        end_pc=0.005 * MAX_NODES,
     )
     val_dataset, vocab_size = get_dataset(
         dataset, 
