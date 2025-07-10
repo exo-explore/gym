@@ -6,6 +6,7 @@ import numpy as np
 import copy
 from typing import Union, Callable
 
+from exogym.common import TrainConfig
 from exogym.strategy.strategy import Strategy
 from exogym.aux import WandbLogger, CSVLogger
 from exogym.strategy.communicate import all_reduce, broadcast
@@ -16,33 +17,10 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
     Single node of distributed training process. Should be the same regardless of rank topology/architecture.
     """
 
-    def __init__(
-        self,
-        model: torch.nn.Module,
-        train_dataset: Union[
-            torch.utils.data.Dataset,
-            Callable[[int, int, bool], torch.utils.data.Dataset],
-        ],
-        train_sampler: torch.utils.data.Sampler,
-        val_dataset: Union[
-            torch.utils.data.Dataset,
-            Callable[[int, int, bool], torch.utils.data.Dataset],
-        ],
-        strategy: Strategy,
-        device: torch.device,
-        rank: int,
-        num_nodes: int,
-        num_epochs: int,
-        max_steps: int = None,
-        batch_size: int = 16,
-        minibatch_size: int = 16,
-        val_size: int = 64,
-        val_interval: int = 100,
-        checkpoint_interval: int = 100,
-        autocast: bool = False,
-        **kwargs,
-    ):
-        seed = kwargs.get("seed", 42)
+    def __init__(self, config: TrainConfig):
+        self.config = config
+
+        seed = config.kwargs.get("seed", 42)
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
         np.random.seed(seed)
@@ -50,48 +28,45 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
-        self.model = model
+        self.model = config.model
 
-        # Handle dataset factory vs direct dataset for training
-        if callable(train_dataset):
-            # Call the dataset factory function with rank, num_nodes, and val=False
-            self.train_dataset = train_dataset(rank, num_nodes, False)
-            # When using dataset factory, we don't need a distributed sampler
-            # since the factory should return the appropriate subset
+        self.num_nodes = config.num_nodes
+        self.rank = config.rank
+        self.device = config.device
+
+        self.strategy = config.strategy
+
+        self.num_epochs = config.num_epochs
+        self.max_steps = config.max_steps
+        self.batch_size = config.batch_size
+        self.minibatch_size = config.minibatch_size
+        self.val_size = config.val_size
+        self.val_interval = config.val_interval
+        self.autocast = config.autocast
+        self.checkpoint_interval = config.checkpoint_interval
+
+        # if train_dataset is a pure dataset, we need a sampler.
+        # Otherwise, it's a factory function - so no need :)
+        if not callable(config.train_dataset):
+            self.train_dataset = config.train_dataset
+            self.train_sampler = torch.utils.data.DistributedSampler(
+                self.train_dataset,
+                num_replicas=self.num_nodes,
+                rank=self.rank,
+                shuffle=config.shuffle,
+            )
+        else:
+            self.train_dataset = config.train_dataset(rank, num_nodes, val=False)
             self.train_sampler = None
+
+        if not callable(config.val_dataset):
+            self.val_dataset = config.val_dataset
         else:
-            # Use the dataset directly as before
-            self.train_dataset = train_dataset
-            self.train_sampler = train_sampler
+            self.val_dataset = config.val_dataset(rank, num_nodes, True)
 
-        # Handle dataset factory vs direct dataset for validation
-        if callable(val_dataset):
-            # Call the dataset factory function with rank, num_nodes, and val=True
-            self.val_dataset = val_dataset(rank, num_nodes, True)
-        else:
-            # Use the dataset directly as before
-            self.val_dataset = val_dataset
-
-        self.strategy = strategy
-        self.device = device
-        self.rank = rank
-        self.num_nodes = num_nodes
-        self.num_epochs = num_epochs
-        self.max_steps = max_steps
-        self.batch_size = batch_size
-        self.minibatch_size = minibatch_size
-        self.val_size = val_size
-        self.val_interval = val_interval
-        self.autocast = autocast
-        self.checkpoint_interval = checkpoint_interval
-
-        self.kwargs = kwargs
+        self.kwargs = config.kwargs
 
         self.build_dataloaders()
-
-        seed = 42
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
 
         ## Ensure all process models share the same params
         if self.num_nodes > 1:

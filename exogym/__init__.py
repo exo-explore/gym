@@ -1,6 +1,6 @@
 # DistributedSim main package
 
 from .train_node import TrainNode
-from .trainer import Trainer, LocalTrainer
+from .trainer import Trainer
 
-__all__ = ["TrainNode", "Trainer", "LocalTrainer"]
+__all__ = ["TrainNode", "Trainer"]
