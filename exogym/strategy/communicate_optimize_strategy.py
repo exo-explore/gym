@@ -47,13 +47,13 @@ class CommunicateOptimizeStrategy(Strategy):
     def __init__(
         self,
         communication_modules: List[CommunicationModule],
-        inner_optim: Optional[Union[str, OptimSpec]] = None,
+        optim_spec: Optional[Union[str, OptimSpec]] = None,
         max_norm: Optional[float] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
 
-        self.inner_optim_spec = ensure_optim_spec(inner_optim) or OptimSpec(
+        self.inner_optim_spec = ensure_optim_spec(optim_spec) or OptimSpec(
             torch.optim.AdamW
         )
 

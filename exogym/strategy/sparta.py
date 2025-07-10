@@ -50,7 +50,7 @@ class SparseCommunicator(CommunicationModule):
 class SPARTAStrategy(CommunicateOptimizeStrategy):
     def __init__(
         self,
-        inner_optim: Optional[Union[str, OptimSpec]] = None,
+        optim_spec: Optional[Union[str, OptimSpec]] = None,
         p_sparta=0.005,
         **kwargs,
     ):
@@ -60,7 +60,7 @@ class SPARTAStrategy(CommunicateOptimizeStrategy):
         sparse_comm = SparseCommunicator(index_selector)
 
         super().__init__(
-            inner_optim=inner_optim, communication_modules=[sparse_comm], **kwargs
+            optim_spec=optim_spec, communication_modules=[sparse_comm], **kwargs
         )
 
         self.index_selector = index_selector
