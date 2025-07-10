@@ -1,4 +1,3 @@
-# mnist_compare_strategies_big.py  (2-space indent preserved ✨)
 from exogym.trainer import Trainer
 from exogym.strategy.diloco import DiLoCoStrategy
 from exogym.strategy.sparta import SPARTAStrategy
@@ -105,7 +104,8 @@ def run_sweep():
 
         strategy = Strat(
             optim_spec=optim_spec,
-            H=10,
+            H=20,
+            p=0.05,
             lr_scheduler="lambda_cosine",
             lr_scheduler_kwargs={"warmup_steps": 100, "cosine_anneal": True},
         )
