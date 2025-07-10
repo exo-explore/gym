@@ -1,5 +1,6 @@
 import torch
 from typing import Any, Dict, List
+from collections import OrderedDict
 
 
 class LogModule:
@@ -236,3 +237,10 @@ def _average_model_states(model_states: Dict[int, OrderedDict]) -> OrderedDict:
 
     return averaged_state
 
+def get_device():
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_available():
+        return "mps"
+    else:
+        return "cpu"

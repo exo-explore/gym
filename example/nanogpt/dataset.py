@@ -1,5 +1,6 @@
 import numpy as np
 import os
+from typing import Literal
 
 from .build_dataset import build_dataset_small, build_dataset_owt
 from .gpt_dataset import ContiguousGPTTrainDataset, LazyNonContiguousGPTTrainDataset
@@ -18,21 +19,22 @@ def load_chunk(chunk_id, s3_client):
 
 
 def get_dataset(
-    dataset_name,
-    block_size,
-    device,
+    dataset_name: Literal["shakespeare", "wikitext", "owt"],
+    block_size: int,
+    device: str,
     start_pc=0.0,
     end_pc=1.0,
     max_workers=8,
     max_chunks_in_memory=None,
 ):
-    if dataset_name != "owt":
+    if dataset_name in ["shakespeare", "wikitext"]:
         data, vocab_size = build_dataset_small(
             dataset_name, block_size, start_pc, end_pc
         )
 
         dataset = ContiguousGPTTrainDataset(data, block_size=block_size, device=device)
     else:
+        # openwebtext
         chunk_ids, cache_location, vocab_size = build_dataset_owt(
             start_pc, end_pc, max_workers=max_workers
         )
