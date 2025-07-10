@@ -15,55 +15,46 @@ SEQ_LEN = 2**10
 BASE_BATCH_SIZE = 2**16
 
 def main():
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("--dataset", type=str, default="shakespeare")
+    args = arg_parser.parse_args()
+    dataset = args.dataset
+
     # Get datasets - this will take a while the first time, as the dataset has to be imported and processed.
     train_dataset, vocab_size = get_dataset(
-        "owt",
+        dataset,
         block_size=1024,
         device="cpu",
         start_pc=0.0,
-        end_pc=0.005 * MAX_NODES,
+        end_pc=0.005 * NUM_NODES ,
     )
     val_dataset, vocab_size = get_dataset(
-        "owt", 
+        dataset, 
         block_size=1024, 
-        device="cpu", 
+        device="cpu",
         start_pc=0.99, 
         end_pc=1.0
     )
-    # train_dataset, vocab_size = get_dataset(
-    #     "shakespeare",
-    #     block_size=SEQ_LEN,
-    #     device="cpu",
-    #     start_pc=0.0,
-    #     end_pc=0.9
-    # )
-    # val_dataset, vocab_size = get_dataset(
-    #     "shakespeare", 
-    #     block_size=SEQ_LEN, 
-    #     device="cpu", 
-    #     start_pc=0.9,
-    #     end_pc=1.0
-    # )
+
+    device = get_device()
 
     # Create model
-    gpt_config = GPTConfig(
-        vocab_size=vocab_size,
-        block_size=1024,
-        n_layer=8,
-        n_head=8,
-        n_embd=512,
-        dropout=0.0,
-    )
-    # gpt_config = GPTConfig.gpt2_small()
-    # gpt_config.dropout = 0.2
-    gpt_config.vocab_size = vocab_size
+    if dataset == "shakespeare":
+        gpt_config = GPTConfig.gpt2_small()
+        gpt_config.dropout = 0.2
+    elif dataset == "owt" and device == 'mps':
+        gpt_config = GPTConfig.gpt_sbase()
+    elif dataset == "owt" and device == 'cuda':
+        gpt_config = GPTConfig.gpt2_base()
+    else:
+        raise ValueError(f"Invalid dataset: {dataset} on device: {device}")
 
+    gpt_config.vocab_size = vocab_size
     model = GPT(gpt_config)
-    trainer = LocalTrainer(
+    trainer = Trainer(
         model,
         train_dataset,
         val_dataset,
-        start_port=12355
     )
 
 
