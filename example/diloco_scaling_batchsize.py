@@ -14,10 +14,6 @@ TOTAL_TOKENS = (2**15) * (2**13)  # 1024 steps for smallest GBS
 SEQ_LEN = 2**10
 BASE_BATCH_SIZE = 2**16
 
-### PLAYGROUND
-### This is a minimal configuration for training a nanogpt model with a given strategy.
-### The strategy can be swapped out for custom logic by writing a new strategy class.
-
 def main():
     # Get datasets - this will take a while the first time, as the dataset has to be imported and processed.
     train_dataset, vocab_size = get_dataset(

@@ -2,7 +2,7 @@ from tqdm import tqdm
 import numpy as np
 from torch import nn
 
-from .utils import create_config
+from exogym.aux.utils import create_config
 
 import json
 import os

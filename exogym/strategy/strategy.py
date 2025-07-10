@@ -8,7 +8,7 @@ from typing import Dict, Any
 
 from .communicate import all_reduce
 
-from exogym.utils import LogModule
+from exogym.aux.utils import LogModule
 
 from abc import ABC, abstractmethod
 

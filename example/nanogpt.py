@@ -326,9 +326,8 @@ def main():
         shuffle=(args.dataset != "owt"),
         val_size=args.val_size,
         val_interval=args.val_interval,
-        wandb_project=args.wandb_project,
+        # wandb_project=args.wandb_project,
         # run_name=args.run_name or gen_run_name(args, args.strategy)
-        run_name=None,
     )
 
 
