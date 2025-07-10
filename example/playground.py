@@ -26,7 +26,7 @@ def main():
         block_size=1024,
         device="cpu",
         start_pc=0.0,
-        end_pc=0.005 * NUM_NODES ,
+        end_pc=0.005 * NUM_NODES if dataset == "owt" else 0.99,
     )
     val_dataset, vocab_size = get_dataset(
         dataset, 
