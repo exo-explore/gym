@@ -145,7 +145,7 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
         self.strategy.step()
 
         if self.rank == 0:
-            self.logger.log_examples_trained(examples=self.batch_size)
+            self.logger.log_examples_trained(examples=self.batch_size * self.num_nodes)
             self.logger.log_train(loss=loss.item())
 
         # if self.checkpoint_interval and self.local_step % self.checkpoint_interval == 0:
