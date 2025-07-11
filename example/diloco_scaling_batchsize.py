@@ -12,9 +12,9 @@ from nanogpt import GPT, GPTConfig, get_dataset
 MAX_NODES = 4
 H = 30
 TOTAL_TOKENS = (2**15) * (2**13)  # 1024 steps for smallest GBS
-# TOTAL_TOKENS = (2**15) * 10  # 1024 steps for smallest GBS
+# TOTAL_TOKENS = (2**14) * 32
 SEQ_LEN = 2**10
-BASE_BATCH_SIZE = 2**16
+BASE_BATCH_SIZE = 2**14
 
 def main():
     arg_parser = argparse.ArgumentParser()
@@ -60,7 +60,7 @@ def main():
     )
 
 
-    batch_size_multiplier_list = [1, 2, 4, 8]
+    batch_size_multiplier_list = [1, 2, 4, 8, 16, 32]
 
     for batch_size_multiplier in batch_size_multiplier_list:
         global_batch = batch_size_multiplier * BASE_BATCH_SIZE
@@ -102,6 +102,9 @@ def main():
             )
 
             # Train it!
+            
+            local_batch_size = global_batch // SEQ_LEN // K
+            local_minibatch_size = min(32 // K, local_batch_size)  # Ensure minibatch_size <= batch_size
 
             trainer.fit(
                 num_epochs=1,
@@ -109,8 +112,8 @@ def main():
                 strategy=strategy,
                 num_nodes=K,
                 device="mps",
-                batch_size=global_batch // SEQ_LEN // K,
-                minibatch_size=32 // K,  # Gradient accumulation to ensure we can fit in memory for a 96GB machine. Make this even lower for smaller devices.
+                batch_size=local_batch_size,
+                minibatch_size=local_minibatch_size,
                 shuffle=True,
                 val_size=256,
                 val_interval=128 // batch_size_multiplier,

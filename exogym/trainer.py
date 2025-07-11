@@ -129,7 +129,9 @@ class Trainer:
         For multi-process training, delegates to launch_ddp for notebook safety.
         Returns the final trained model (averaged across nodes for multi-node training).
         """
-        assert val_size // batch_size > 0, "val_size must be geq batch_size"
+        # assert val_size // batch_size > 0, f"val_size must be geq batch_size: {val_size} // {batch_size}"
+        assert batch_size > 0, 'local batch size needs to be nonzero'
+        assert minibatch_size <= batch_size, f'minibatch_size ({minibatch_size}) must be <= batch_size ({batch_size}) for gradient accumulation to work properly'
 
         self.port += 1
 

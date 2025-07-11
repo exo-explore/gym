@@ -94,7 +94,7 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
 
         self.val_dataloader = DataLoader(
             self.val_dataset, 
-            batch_size=self.minibatch_size, 
+            batch_size=self.minibatch_size,
             shuffle=True
         )
 
@@ -126,7 +126,10 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
     def _train_step(self):
         self.strategy.zero_grad()
 
-        for i in range(self.batch_size // self.minibatch_size):
+        grad_accumulation_steps = self.batch_size // self.minibatch_size
+        assert grad_accumulation_steps >= 1, f"Gradient accumulation steps must be >= 1, but got batch_size={self.batch_size} // minibatch_size={self.minibatch_size} = {grad_accumulation_steps}"
+
+        for i in range(grad_accumulation_steps):
             minibatch = self._get_batch()
 
             ## TODO: Do we want this?
@@ -139,8 +142,8 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
             loss.backward()
 
         for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                param.grad /= self.batch_size / self.minibatch_size
+            if param.requires_grad and param.grad is not None:
+                param.grad /= grad_accumulation_steps
 
         self.strategy.step()
 
