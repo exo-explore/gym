@@ -1,4 +1,4 @@
-from exogym.trainer import LocalTrainer
+from exogym.trainer import Trainer
 from nanogpt import GPT, GPTConfig, get_dataset
 from exogym.strategy.optim import OptimSpec
 
@@ -305,7 +305,7 @@ def main():
     model = GPT(gpt_config)
 
     # Create trainer
-    trainer = LocalTrainer(
+    trainer = Trainer(
         model,
         train_dataset,
         val_dataset,

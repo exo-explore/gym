@@ -53,7 +53,7 @@ class CommunicateOptimizeStrategy(Strategy):
     ):
         super().__init__(**kwargs)
 
-        self.inner_optim_spec = ensure_optim_spec(optim_spec) or OptimSpec(
+        self.optim_spec = ensure_optim_spec(optim_spec) or OptimSpec(
             torch.optim.AdamW
         )
 
@@ -90,5 +90,5 @@ class CommunicateOptimizeStrategy(Strategy):
         for comm_module in self.communication_modules:
             comm_module._init_node(model, rank, num_nodes)
 
-        self.optim = self.inner_optim_spec.build(model)
+        self.optim = self.optim_spec.build(model)
         self._setup_scheduler()

@@ -46,6 +46,9 @@ class Strategy(ABC, LogModule):
 
         self.local_step = 0
 
+        if hasattr(self, 'optim_spec'):
+            self.optim = self.optim_spec.build(model)
+
     @abstractmethod
     def step(self):
         self.nbytes = 0

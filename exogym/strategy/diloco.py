@@ -20,7 +20,7 @@ class DiLoCoStrategy(Strategy):
         **kwargs,
     ):
 
-        self.inner_optim_spec = ensure_optim_spec(
+        self.optim_spec = ensure_optim_spec(
             optim_spec, OptimSpec(torch.optim.AdamW)
         )
         self.outer_optim_spec = ensure_optim_spec(
@@ -82,5 +82,5 @@ class DiLoCoStrategy(Strategy):
 
             self.outer_optimizer = self.outer_optim_spec.build(self.master_model)
 
-        self.optim = self.inner_optim_spec.build(model)
+        self.optim = self.optim_spec.build(model)
         self._setup_scheduler()
