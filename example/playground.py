@@ -80,7 +80,7 @@ def main():
         max_steps=5000,
         strategy=strategy,
         num_nodes=NUM_NODES,
-        device="mps",
+        device=device,
         batch_size=16,
         minibatch_size=8, # Gradient accumulation to ensure we can fit in memory. Make this even lower for smaller devices.
         shuffle=False,
