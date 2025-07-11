@@ -86,6 +86,7 @@ def main():
             val_interval=100,
             wandb_project="DiLoCo-Batchsize-Scaling",
             run_name=f"ddp-batchsize{global_batch}",
+            log_x_axis="examples",
         )
 
         for K in [1, 2, 4]:
@@ -115,6 +116,7 @@ def main():
                 val_interval=128 // batch_size_multiplier,
                 wandb_project="DiLoCo-Batchsize-Scaling",
                 run_name=f"diloco-K{K}-batchsize{global_batch}",
+                log_x_axis="examples",
             )
 
 

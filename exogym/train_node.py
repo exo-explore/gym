@@ -145,6 +145,7 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
         self.strategy.step()
 
         if self.rank == 0:
+            self.logger.log_examples_trained(examples=self.batch_size)
             self.logger.log_train(loss=loss.item())
 
         # if self.checkpoint_interval and self.local_step % self.checkpoint_interval == 0:
@@ -237,6 +238,7 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
                     train_node=self,
                     wandb_project=self.kwargs.get("wandb_project", None),
                     run_name=self.kwargs.get("run_name", None),
+                    x_axis=self.kwargs.get("log_x_axis", "step"),
                 )
             else:
                 self.logger = CSVLogger(
