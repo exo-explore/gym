@@ -25,14 +25,14 @@ def main():
     # Get datasets - this will take a while the first time, as the dataset has to be imported and processed.
     train_dataset, vocab_size = get_dataset(
         dataset,
-        block_size=1024,
+        block_size=SEQ_LEN,
         device="cpu",
         start_pc=0.0,
         end_pc=0.005 * MAX_NODES if dataset == "owt" else 0.99,
     )
     val_dataset, vocab_size = get_dataset(
         dataset, 
-        block_size=1024, 
+        block_size=SEQ_LEN, 
         device="cpu",
         start_pc=0.99, 
         end_pc=1.0
