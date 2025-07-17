@@ -1,40 +1,41 @@
 <div align="center">
 
-# EXO Gym 🏋🏽
+# EXO Gym
 
 <img src="docs/macs.png" alt="EXO Gym" width="50%">
 
+<!-- New image ideas: A macbook with a loss curve on it, with a 'thinking bubbles' coming out of the macbook, and in the bubble there is a stack of 4 H100 GPUs. It's like the laptop is imagining the cluster.  -->
 
 
-<!-- 
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="imgs/macs.png">
-  <img alt="exo logo" src="imgs/macs.png" width="50%" height="50%">
-</picture> -->
+##### EXO Gym: Simulate distributed training on any hardware configuration, at any scale.
 
-
-EXO Gym is an open source framework for simulating distributed training methods.
-
-**Simulate a GPU cluster with just your laptop!** 🖥️ 
-Forget about high GPU bills 💸 and painful Kubernetes setup 🤯. 
-Want to scale up from 4 to 8 nodes? Just change a single parameter 🔧 
-Implementing a new algo from scratch takes as little at 5 lines 🚀
+Simulate a GPU cluster with just your laptop! For example:
 
 </div>
 
-## Supported Devices
+- Simulate training with SPARTA with a cluster of 4 Mac Studios connected over Ethernet
+- Simulate training with DiLoCo on a cluster of 16 H100's connected over the internet
 
-- CPU
-- CUDA
-- MPS (CPU-bound for copy operations, see [here](https://github.com/pytorch/pytorch/issues/141287))
+## What Does EXO Gym Do?
 
-## (Natively) Supported Algorithms
+- Simulate distributed training without setting up distributed clusters; avoid Kubernetes, GPU hosting, etc.
+- Fast iteration: implementing a new distributed training algo from scratch takes as little as 5 lines
+- Scale up number of nodes by changing a single parameter
+
+<!-- Bullet this -->
+<!-- Forget about high GPU bills 💸 and painful Kubernetes setup 🤯. 
+Want to scale up from 4 to 8 nodes? Just change a single parameter 🔧 
+Implementing a new algo from scratch takes as little at 5 lines 🚀 -->
+
+## Supported Algorithms
 
 - AllReduce (Equivalent to PyTorch [DDP](https://arxiv.org/abs/2006.15704))
 - [FedAvg](https://arxiv.org/abs/2311.08105)
 - [DiLoCo](https://arxiv.org/abs/2311.08105)
 - [SPARTA](https://openreview.net/forum?id=stFPf3gzq1)
 - [DeMo](https://arxiv.org/abs/2411.19870)
+
+... and anything else you can imagine! Implementing new algorithms with EXO Gym is very simple - see <a href='#custom-algorithms'>Custom Algorithms</a>.
 
 
 ## Installation
@@ -133,6 +134,14 @@ class QuantizationStrategy(Strategy):
 ```
 
 
-# Technical Details
+
+## Supported Devices
+
+- CPU
+- CUDA
+- MPS (CPU-bound for copy operations, see [here](https://github.com/pytorch/pytorch/issues/141287))
+
+
+## Technical Details
 
 For further details on how EXO Gym works under-the-hood, please see [docs/](docs/README.md).
