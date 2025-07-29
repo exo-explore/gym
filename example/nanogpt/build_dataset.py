@@ -152,8 +152,6 @@ def build_dataset_small(dataset, block_size=1024, start_pc=0.0, end_pc=1.0):
 
     data = dataset_processed["ids"]
 
-    print(f"Dataset size: {data.shape}")
-
     np.save(data_cache_file, data)
 
     return data, vocab_size
