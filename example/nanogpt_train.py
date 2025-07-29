@@ -4,6 +4,7 @@ from exogym.strategy.optim import OptimSpec
 
 import argparse
 import torch
+from functools import partial
 
 
 def gen_run_name(args, strategy):
@@ -28,26 +29,24 @@ def gen_run_name(args, strategy):
         return base_name
 
 
-def create_owt_dataset_factory(dataset_name, block_size, start_pc, end_pc, val_start_pc, val_end_pc):
-    """Create a dataset factory function for OWT dataset."""
-    def dataset_factory(rank: int, num_nodes: int, train_dataset: bool) -> torch.utils.data.Dataset:
-        if train_dataset:
-            start = rank / num_nodes * (end_pc - start_pc) + start_pc
-            end = (rank + 1) / num_nodes * (end_pc - start_pc) + start_pc
-        else:
-            start = val_start_pc
-            end = val_end_pc
-        
-        dataset, _ = get_dataset(
-            dataset_name,
-            block_size=block_size,
-            device="cpu",
-            start_pc=start,
-            end_pc=end,
-        )
-        return dataset
+def owt_dataset_factory(dataset_name, block_size, start_pc, end_pc, val_start_pc, val_end_pc,
+                        rank: int, num_nodes: int, train_dataset: bool) -> torch.utils.data.Dataset:
+    """Dataset factory function for OWT dataset."""
+    if train_dataset:
+        start = rank / num_nodes * (end_pc - start_pc) + start_pc
+        end = (rank + 1) / num_nodes * (end_pc - start_pc) + start_pc
+    else:
+        start = val_start_pc
+        end = val_end_pc
     
-    return dataset_factory
+    dataset, _ = get_dataset(
+        dataset_name,
+        block_size=block_size,
+        device="cpu",
+        start_pc=start,
+        end_pc=end,
+    )
+    return dataset
 
 
 def arg_parse():
@@ -273,7 +272,8 @@ def main():
 
     ## Example of dataset factory for OWT.
     if args.dataset == "owt" or False:
-        dataset_factory = create_owt_dataset_factory(
+        dataset_factory = partial(
+            owt_dataset_factory,
             args.dataset,
             args.block_size,
             args.start_pc,

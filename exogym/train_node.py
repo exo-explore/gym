@@ -56,13 +56,13 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
                 shuffle=config.shuffle,
             )
         else:
-            self.train_dataset = config.train_dataset(rank, num_nodes, val=False)
+            self.train_dataset = config.train_dataset(self.rank, self.num_nodes, train_dataset=True)
             self.train_sampler = None
 
         if not callable(config.val_dataset):
             self.val_dataset = config.val_dataset
         else:
-            self.val_dataset = config.val_dataset(rank, num_nodes, True)
+            self.val_dataset = config.val_dataset(self.rank, self.num_nodes, train_dataset=False)
 
         self.kwargs = config.kwargs
 
