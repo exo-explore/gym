@@ -113,30 +113,30 @@ def arg_parse():
     parser = argparse.ArgumentParser(conflict_handler="resolve")
 
     # Dataset arguments
-    parser.add_argument("--subset", type=float, default=0.2, help="Train subset fraction (0 < s ≤ 1)")
+    parser.add_argument("--subset", type=float, default=1.0, help="Train subset fraction (0 < s ≤ 1)")
     parser.add_argument("--seed", type=int, default=0)
 
     # Training arguments
     parser.add_argument("--num_nodes", type=int, default=4)
     parser.add_argument("--device", type=str, default="")
     parser.add_argument("--epochs", type=int, default=1)
-    parser.add_argument("--model_name", type=str, default="convnextv2_nano", 
+    parser.add_argument("--model_name", type=str, default="convnextv2_tiny", 
                        help="timm model name")
 
     # Optimization arguments
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--minibatch_size", type=int, default=32)
-    parser.add_argument("--lr", type=float, default=5e-4)
-    parser.add_argument("--weight_decay", type=float, default=0.05)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
     parser.add_argument("--max_norm", type=float, default=1.0)
-    parser.add_argument("--warmup_steps", type=int, default=500)
+    parser.add_argument("--warmup_steps", type=int, default=5000)
     parser.add_argument("--max_steps", type=int, default=30000)
-    parser.add_argument("--cosine_anneal", action="store_true")
+    parser.add_argument("--cosine_anneal", action="store_true", default=True)
 
     # Logging and reproducibility
     parser.add_argument("--wandb_project", type=str, default='image_exogym')
     parser.add_argument("--run_name", type=str, default=None)
-    parser.add_argument("--val_size", type=int, default=128)
+    parser.add_argument("--val_size", type=int, default=512)
     parser.add_argument("--val_interval", type=int, default=200)
     parser.add_argument("--correlation_interval", type=int, default=None)
     parser.add_argument("--checkpoint_interval", type=int, default=None)
