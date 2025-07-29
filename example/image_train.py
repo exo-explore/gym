@@ -118,7 +118,7 @@ def arg_parse():
 
     # Training arguments
     parser.add_argument("--num_nodes", type=int, default=4)
-    parser.add_argument("--device", type=str, default="")
+    parser.add_argument("--device", type=str, default="mps")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--model_name", type=str, default="convnextv2_nano", 
                        help="timm model name")
@@ -362,6 +362,14 @@ def main():
     # Create strategy based on selection
     strategy = create_strategy(args)
     
+    # Define dataloader kwargs for better GPU utilization
+    dataloader_kwargs = {
+        "num_workers": 8,
+        "pin_memory": True,
+        "persistent_workers": True,
+        "prefetch_factor": 4,
+    }
+    
     # Train
     trainer.fit(
         num_epochs=args.epochs,
@@ -377,7 +385,8 @@ def main():
         correlation_interval=args.correlation_interval,
         save_dir=args.save_dir,
         wandb_project=args.wandb_project,
-        run_name=args.run_name or gen_run_name(args, args.strategy)
+        run_name=args.run_name or gen_run_name(args, args.strategy),
+        dataloader_kwargs=dataloader_kwargs,
     )
 
 

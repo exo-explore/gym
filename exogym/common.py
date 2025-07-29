@@ -33,9 +33,12 @@ class TrainConfig:
     checkpoint_interval: Optional[int] = None
     correlation_interval: Optional[int] = None
     save_dir: str = "./checkpoints"
+    dataloader_kwargs: Dict[str, Any] = None
 
     kwargs: Dict[str, Any] = None
 
     def __post_init__(self):
         if self.kwargs is None:
             self.kwargs = {}
+        if self.dataloader_kwargs is None:
+            self.dataloader_kwargs = {}

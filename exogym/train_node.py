@@ -90,12 +90,14 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
             batch_size=self.minibatch_size,
             sampler=self.train_sampler,
             shuffle=(self.train_sampler is None),
+            **self.config.dataloader_kwargs,
         )
 
         self.val_dataloader = DataLoader(
             self.val_dataset, 
             batch_size=self.minibatch_size,
-            shuffle=True
+            shuffle=True,
+            **self.config.dataloader_kwargs,
         )
 
         self.train_data_iter = iter(self.train_dataloader)
