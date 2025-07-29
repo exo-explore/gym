@@ -118,7 +118,7 @@ def arg_parse():
 
     # Training arguments
     parser.add_argument("--num_nodes", type=int, default=4)
-    parser.add_argument("--device", type=str, default="mps")
+    parser.add_argument("--device", type=str, default="")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--model_name", type=str, default="convnextv2_nano", 
                        help="timm model name")
