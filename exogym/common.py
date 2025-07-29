@@ -32,6 +32,7 @@ class TrainConfig:
     autocast: bool = False
     checkpoint_interval: Optional[int] = None
     correlation_interval: Optional[int] = None
+    save_dir: str = "./checkpoints"
 
     kwargs: Dict[str, Any] = None
 

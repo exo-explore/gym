@@ -123,6 +123,7 @@ class Trainer:
         autocast: bool = False,
         checkpoint_interval: Optional[int] = None,
         correlation_interval: Optional[int] = None,
+        save_dir: str = "./checkpoints",
         **kwargs,
     ):
         """
@@ -158,6 +159,7 @@ class Trainer:
             autocast=autocast,
             checkpoint_interval=checkpoint_interval,
             correlation_interval=correlation_interval,
+            save_dir=save_dir,
             kwargs=kwargs,
         )
         

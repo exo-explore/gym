@@ -143,6 +143,16 @@ class WandbLogger(Logger):
             }
         )
 
+    def log_info(self, value: float, name: str):
+        import wandb
+
+        if hasattr(self, "run_name"):
+            data = {name: value}
+            if self.x_axis == 'step':
+                wandb.log(data, step=self.step)
+            elif self.x_axis == 'examples':
+                wandb.log(data, step=self.examples_trained)
+
 
 class CSVLogger(Logger):
     def __init__(
@@ -300,3 +310,7 @@ class CSVLogger(Logger):
                 "lr": f"{self.current_lr:.6f}",
             }
         )
+
+    def log_info(self, value: float, name: str):
+        """Log training loss to CSV"""
+        raise NotImplementedError('log_info not implemented for CSV logging.')

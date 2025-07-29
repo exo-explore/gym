@@ -264,7 +264,9 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
 
             # Calculate correlation if interval is set and it's time
             if self.config.correlation_interval and self.local_step > 0 and self.local_step % self.config.correlation_interval == 0:
-                self._correlation_calculation()
+                correlation_value = self._correlation_calculation()
+                if self.rank == 0:
+                    self.logger.log_info(correlation_value, 'correlation')
 
             dist.barrier()
 

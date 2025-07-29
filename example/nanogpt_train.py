@@ -18,11 +18,11 @@ def gen_run_name(args, strategy):
     elif strategy == "sparta":
         return f"sparta_p{args.p_sparta}_n{args.num_nodes}_lr{args.lr:.0e}"
     elif strategy == "diloco":
-        return f"diloco_{base_name}_outer{args.outer_lr:.0e}_H{args.diloco_interval}"
+        return f"diloco_{base_name}_outer{args.outer_lr:.0e}_H{args.H}"
     elif strategy == "demo":
         return f"demo_{base_name}_topk{args.compression_topk}_decay{args.compression_decay}"
     elif strategy == "diloco_sparta":
-        return f"diloco_sparta_{base_name}_outer{args.outer_lr:.0e}_H{args.diloco_interval}_p{args.p_sparta}"
+        return f"diloco_sparta_{base_name}_outer{args.outer_lr:.0e}_H{args.H}_p{args.p_sparta}"
     else:
         return base_name
 
@@ -93,6 +93,7 @@ def arg_parse():
     parser.add_argument("--val_interval", type=int, default=100)
     parser.add_argument("--correlation_interval", type=int, default=None)
     parser.add_argument("--checkpoint_interval", type=int, default=None)
+    parser.add_argument("--save_dir", type=str, default="./checkpoints")
 
     # Strategy selection
     parser.add_argument(
@@ -123,9 +124,6 @@ def arg_parse():
     )
 
     # DiLoCo-specific arguments
-    parser.add_argument(
-        "--diloco_interval", type=int, default=100, help="DiLoCo communication interval"
-    )
     parser.add_argument(
         "--outer_lr", type=float, default=0.7, help="DiLoCo outer learning rate"
     )
@@ -217,7 +215,7 @@ def create_strategy(args):
         return DiLoCoStrategy(
             optim_spec=inner_optim,
             outer_optim_spec=outer_optim,
-            H=args.diloco_interval,
+            H=args.H,
             lr_scheduler="lambda_cosine",
             lr_scheduler_kwargs=lr_scheduler_kwargs,
             max_norm=args.max_norm,
@@ -255,7 +253,7 @@ def create_strategy(args):
         return SPARTADiLoCoStrategy(
             inner_optim_spec=inner_optim,
             outer_optim_spec=outer_optim,
-            H=args.diloco_interval,
+            H=args.H,
             p_sparta=args.p_sparta,
             sparta_interval=args.sparta_interval,
             lr_scheduler="lambda_cosine",
@@ -334,6 +332,8 @@ def main():
         shuffle=(args.dataset != "owt"),
         val_size=args.val_size,
         val_interval=args.val_interval,
+        correlation_interval=args.correlation_interval,
+        save_dir=args.save_dir,
         wandb_project=args.wandb_project,
         run_name=args.run_name or gen_run_name(args, args.strategy)
     )
