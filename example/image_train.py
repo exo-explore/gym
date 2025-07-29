@@ -130,7 +130,7 @@ def arg_parse():
     parser.add_argument("--weight_decay", type=float, default=0.05)
     parser.add_argument("--max_norm", type=float, default=1.0)
     parser.add_argument("--warmup_steps", type=int, default=500)
-    parser.add_argument("--max_steps", type=int, default=10000)
+    parser.add_argument("--max_steps", type=int, default=3000python example/image_train.py --strategy diloco --H 100 --num_nodes 40)
     parser.add_argument("--cosine_anneal", action="store_true")
 
     # Logging and reproducibility
