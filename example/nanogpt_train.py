@@ -11,20 +11,18 @@ def gen_run_name(args, strategy):
     """Generate wandb name based on strategy and arguments."""
     base_name = f"bs{args.batch_size}_lr{args.lr:.0e}"
 
-    if strategy == "base":
-        return f"{base_name}_warm{args.warmup_steps}_max{args.max_steps}"
-    elif strategy == "ddp":
+    if strategy == "ddp":
         return f"ddp_{base_name}_n{args.num_nodes}"
     elif strategy == "fedavg":
-        return f"{base_name}_H{args.H}_n{args.num_nodes}"
+        return f"fedavg_{base_name}_H{args.H}_n{args.num_nodes}"
     elif strategy == "sparta":
-        return f"p{args.p_sparta}_n{args.num_nodes}_lr{args.lr:.0e}"
+        return f"sparta_p{args.p_sparta}_n{args.num_nodes}_lr{args.lr:.0e}"
     elif strategy == "diloco":
-        return f"{base_name}_outer{args.outer_lr:.0e}_H{args.diloco_interval}"
+        return f"diloco_{base_name}_outer{args.outer_lr:.0e}_H{args.diloco_interval}"
     elif strategy == "demo":
-        return f"{base_name}_topk{args.compression_topk}_decay{args.compression_decay}"
+        return f"demo_{base_name}_topk{args.compression_topk}_decay{args.compression_decay}"
     elif strategy == "diloco_sparta":
-        return f"{base_name}_outer{args.outer_lr:.0e}_H{args.diloco_interval}_p{args.p_sparta}"
+        return f"diloco_sparta_{base_name}_outer{args.outer_lr:.0e}_H{args.diloco_interval}_p{args.p_sparta}"
     else:
         return base_name
 
@@ -93,6 +91,8 @@ def arg_parse():
     parser.add_argument("--run_name", type=str, default=None)
     parser.add_argument("--val_size", type=int, default=256)
     parser.add_argument("--val_interval", type=int, default=100)
+    parser.add_argument("--correlation_interval", type=int, default=None)
+    parser.add_argument("--checkpoint_interval", type=int, default=None)
 
     # Strategy selection
     parser.add_argument(
@@ -229,13 +229,14 @@ def create_strategy(args):
         optim = OptimSpec(
             torch.optim.AdamW,
             lr=args.lr,
-            compression_decay=args.compression_decay,
-            compression_topk=args.compression_topk,
-            compression_chunk=args.compression_chunk,
             weight_decay=args.weight_decay,
         )
         return DeMoStrategy(
             optim_spec=optim,
+            compression_decay=args.compression_decay,
+            compression_topk=args.compression_topk,
+            compression_chunk=args.compression_chunk,
+            weight_decay=args.weight_decay,
             lr_scheduler="lambda_cosine",
             lr_scheduler_kwargs=lr_scheduler_kwargs,
             max_norm=args.max_norm,

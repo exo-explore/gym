@@ -151,8 +151,8 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
             self.logger.log_examples_trained(examples=self.batch_size * self.num_nodes)
             self.logger.log_train(loss=loss.item())
 
-        # if self.checkpoint_interval and self.local_step % self.checkpoint_interval == 0:
-        #     self._save_checkpoint()
+        if self.checkpoint_interval and self.local_step % self.checkpoint_interval == 0:
+            self._save_checkpoint()
 
     def _evaluate(self):
         if self.val_size == 0:
@@ -263,8 +263,8 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
                 self.logger.increment_step()
 
             # Calculate correlation if interval is set and it's time
-            # if self.config.correlation_interval and self.local_step > 0 and self.local_step % self.config.correlation_interval == 0:
-            #     self._correlation_calculation()
+            if self.config.correlation_interval and self.local_step > 0 and self.local_step % self.config.correlation_interval == 0:
+                self._correlation_calculation()
 
             dist.barrier()
 

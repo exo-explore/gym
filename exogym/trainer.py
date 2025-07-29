@@ -121,7 +121,8 @@ class Trainer:
         val_size: int = 64,
         val_interval: int = 100,
         autocast: bool = False,
-        checkpoint_interval: int = 100,
+        checkpoint_interval: Optional[int] = None,
+        correlation_interval: Optional[int] = None,
         **kwargs,
     ):
         """
@@ -156,6 +157,7 @@ class Trainer:
             val_interval=val_interval,
             autocast=autocast,
             checkpoint_interval=checkpoint_interval,
+            correlation_interval=correlation_interval,
             kwargs=kwargs,
         )
         

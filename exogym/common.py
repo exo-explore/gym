@@ -30,7 +30,8 @@ class TrainConfig:
     val_size: int = 64
     val_interval: int = 100
     autocast: bool = False
-    checkpoint_interval: int = 100
+    checkpoint_interval: Optional[int] = None
+    correlation_interval: Optional[int] = None
 
     kwargs: Dict[str, Any] = None
 
