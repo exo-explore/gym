@@ -73,7 +73,7 @@ def arg_parse():
     parser.add_argument(
         "--model_size",
         type=str,
-        default="small",
+        default="base",
         choices=["small", "base", "medium", "large", "xl"],
     )
     parser.add_argument("--dropout", type=float, default=None)
