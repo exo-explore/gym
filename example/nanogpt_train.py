@@ -28,6 +28,28 @@ def gen_run_name(args, strategy):
         return base_name
 
 
+def create_owt_dataset_factory(dataset_name, block_size, start_pc, end_pc, val_start_pc, val_end_pc):
+    """Create a dataset factory function for OWT dataset."""
+    def dataset_factory(rank: int, num_nodes: int, train_dataset: bool) -> torch.utils.data.Dataset:
+        if train_dataset:
+            start = rank / num_nodes * (end_pc - start_pc) + start_pc
+            end = (rank + 1) / num_nodes * (end_pc - start_pc) + start_pc
+        else:
+            start = val_start_pc
+            end = val_end_pc
+        
+        dataset, _ = get_dataset(
+            dataset_name,
+            block_size=block_size,
+            device="cpu",
+            start_pc=start,
+            end_pc=end,
+        )
+        return dataset
+    
+    return dataset_factory
+
+
 def arg_parse():
     """Create parser with all arguments for all strategies."""
     parser = argparse.ArgumentParser(conflict_handler="resolve")
@@ -251,30 +273,15 @@ def main():
 
     ## Example of dataset factory for OWT.
     if args.dataset == "owt" or False:
-
-        def dataset_factory(
-            rank: int, num_nodes: int, train_dataset: bool
-        ) -> torch.utils.data.Dataset:
-            if train_dataset:
-                start_pc = (
-                    rank / num_nodes * (args.end_pc - args.start_pc) + args.start_pc
-                )
-                end_pc = (rank + 1) / num_nodes * (
-                    args.end_pc - args.start_pc
-                ) + args.start_pc
-            else:
-                start_pc = args.val_start_pc
-                end_pc = args.val_end_pc
-
-            dataset, _ = get_dataset(
-                args.dataset,
-                block_size=args.block_size,
-                device="cpu",
-                start_pc=start_pc,
-                end_pc=end_pc,
-            )
-            return dataset
-
+        dataset_factory = create_owt_dataset_factory(
+            args.dataset,
+            args.block_size,
+            args.start_pc,
+            args.end_pc,
+            args.val_start_pc,
+            args.val_end_pc
+        )
+        
         train_dataset = dataset_factory
         val_dataset = dataset_factory
 
