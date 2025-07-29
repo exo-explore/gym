@@ -125,7 +125,7 @@ def arg_parse():
 
     # Optimization arguments
     parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--minibatch_size", type=int, default=32)
+    parser.add_argument("--minibatch_size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=0.01)
     parser.add_argument("--max_norm", type=float, default=1.0)
