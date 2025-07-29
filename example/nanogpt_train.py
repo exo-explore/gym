@@ -36,7 +36,7 @@ def arg_parse():
     parser.add_argument(
         "--dataset",
         type=str,
-        default="shakespeare",
+        default="owt",
         help="which dataset to use (shakespeare, wikitext, code, owt)",
     )
     parser.add_argument("--start_pc", type=float, default=0.0)
@@ -46,7 +46,7 @@ def arg_parse():
     parser.add_argument("--block_size", type=int, default=1024)
 
     # Training arguments
-    parser.add_argument("--num_nodes", type=int, default=1)
+    parser.add_argument("--num_nodes", type=int, default=4)
     parser.add_argument("--device", type=str, default="")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument(
@@ -68,7 +68,7 @@ def arg_parse():
 
     # Logging and reproducibility
     parser.add_argument("--seed", type=int, default=1337)
-    parser.add_argument("--wandb_project", type=str, default=None)
+    parser.add_argument("--wandb_project", type=str, default='rebuttal')
     parser.add_argument("--run_name", type=str, default=None)
     parser.add_argument("--val_size", type=int, default=256)
     parser.add_argument("--val_interval", type=int, default=100)
@@ -326,8 +326,8 @@ def main():
         shuffle=(args.dataset != "owt"),
         val_size=args.val_size,
         val_interval=args.val_interval,
-        # wandb_project=args.wandb_project,
-        # run_name=args.run_name or gen_run_name(args, args.strategy)
+        wandb_project=args.wandb_project,
+        run_name=args.run_name or gen_run_name(args, args.strategy)
     )
 
 
