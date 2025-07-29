@@ -23,6 +23,8 @@ def gen_run_name(args, strategy):
         return f"demo_{base_name}_topk{args.compression_topk}_decay{args.compression_decay}"
     elif strategy == "diloco_sparta":
         return f"diloco_sparta_{base_name}_outer{args.outer_lr:.0e}_H{args.H}_p{args.p_sparta}"
+    elif strategy == "dgc":
+        return f"dgc_{base_name}_sparsity{args.dgc_sparsity}_warmup{args.dgc_warmup_steps}"
     else:
         return base_name
 
@@ -100,7 +102,7 @@ def arg_parse():
         "--strategy",
         type=str,
         default="base",
-        choices=["base", "ddp", "fedavg", "sparta", "diloco", "demo", "diloco_sparta"],
+        choices=["base", "ddp", "fedavg", "sparta", "diloco", "demo", "diloco_sparta", "dgc"],
         help="Training strategy to use",
     )
 
@@ -149,6 +151,20 @@ def arg_parse():
     )
     parser.add_argument(
         "--weight_decay", type=float, default=0.0, help="Weight decay factor"
+    )
+    
+    # DGC-specific arguments
+    parser.add_argument(
+        "--dgc_sparsity", type=float, default=0.001, help="DGC target sparsity (0.001 = 0.1%)"
+    )
+    parser.add_argument(
+        "--dgc_warmup_steps", type=int, default=500, help="DGC warmup steps before sparsification"
+    )
+    parser.add_argument(
+        "--dgc_clip_threshold", type=float, default=1.0, help="DGC gradient clipping threshold"
+    )
+    parser.add_argument(
+        "--dgc_momentum", type=float, default=0.9, help="DGC momentum factor"
     )
 
     return parser
@@ -256,6 +272,26 @@ def create_strategy(args):
             H=args.H,
             p_sparta=args.p_sparta,
             sparta_interval=args.sparta_interval,
+            lr_scheduler="lambda_cosine",
+            lr_scheduler_kwargs=lr_scheduler_kwargs,
+            max_norm=args.max_norm,
+        )
+        
+    elif args.strategy == "dgc":
+        from exogym.strategy.dgc import DGCStrategy
+        
+        # DGC works best with SGD + momentum
+        optim = OptimSpec(
+            torch.optim.SGD, 
+            lr=args.lr,
+            momentum=args.dgc_momentum,
+        )
+        return DGCStrategy(
+            optim_spec=optim,
+            target_sparsity=args.dgc_sparsity,
+            warmup_steps=args.dgc_warmup_steps,
+            clip_threshold=args.dgc_clip_threshold,
+            momentum=args.dgc_momentum,
             lr_scheduler="lambda_cosine",
             lr_scheduler_kwargs=lr_scheduler_kwargs,
             max_norm=args.max_norm,
