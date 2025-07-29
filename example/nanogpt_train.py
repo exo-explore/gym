@@ -105,7 +105,7 @@ def arg_parse():
 
     # FedAvg-specific arguments
     parser.add_argument(
-        "--H", type=int, default=100, help="FedAvg communication interval"
+        "--H", type=int, default=200, help="FedAvg communication interval"
     )
     parser.add_argument(
         "--island_size", type=int, default=None, help="FedAvg island size"
