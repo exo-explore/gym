@@ -42,25 +42,11 @@ class SPARTADiLoCoStrategy(CommunicateOptimizeStrategy):
 
         super().__init__(
             optim_spec=optim_spec,
-            communication_modules=[],  # We'll handle communication manually
+            communication_modules=[
+                self.sparse_comm,
+                self.diloco_comm
+            ],
             **kwargs,
         )
 
         self.index_selector = index_selector
-    
-    def _communicate(self):
-        """Apply communication modules with different frequencies."""
-        # SPARTA sparse communication every sparta_interval steps
-        if self.local_step % self.sparta_interval == 0:
-            self.sparse_comm.communicate(self.model, self.rank, self.num_nodes, self.local_step)
-        
-        # DiLoCo master-worker communication every H steps
-        if self.local_step % self.H == 0 and self.local_step > 0:
-            self.diloco_comm.communicate(self.model, self.rank, self.num_nodes, self.local_step)
-    
-    def _init_node(self, model, rank, num_nodes):
-        super()._init_node(model, rank, num_nodes)
-        
-        # Initialize communication modules
-        self.sparse_comm._init_node(model, rank, num_nodes)
-        self.diloco_comm._init_node(model, rank, num_nodes)
