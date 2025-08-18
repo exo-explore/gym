@@ -60,9 +60,9 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/MattyAB/DistributedSim"
-Repository = "https://github.com/MattyAB/DistributedSim"
-Issues = "https://github.com/MattyAB/DistributedSim/issues"
+Homepage = "https://github.com/exo-explore/exogym"
+Repository = "https://github.com/exo-explore/exogym"
+Issues = "https://github.com/exo-explore/exogym/issues"
 
 [tool.setuptools.packages.find]
 include = ["exogym*"]

@@ -148,9 +148,17 @@ def build_dataset_small(dataset, block_size=1024, start_pc=0.0, end_pc=1.0):
         num_proc=os.cpu_count(),
     )
 
-    dataset_processed.set_format(type="numpy", columns=["ids"])
+    # Instead of using .set_format(type="numpy", columns=["ids"]) and then dataset_processed["ids"],
+    # which returns a datasets.arrow_dataset.Column (not a numpy array), we should concatenate all arrays.
+    # This will ensure 'data' is a numpy array.
 
-    data = dataset_processed["ids"]
+    # Get all arrays from the "ids" column and concatenate them
+    ids_list = list(dataset_processed["ids"])
+    if isinstance(ids_list[0], np.ndarray):
+        data = np.concatenate(ids_list)
+    else:
+        # In case the elements are lists, convert to np.array first
+        data = np.concatenate([np.array(x) for x in ids_list])
 
     print(f"Dataset size: {data.shape}")
 

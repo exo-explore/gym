@@ -2,12 +2,13 @@ from tqdm import tqdm
 import numpy as np
 from torch import nn
 
-from .utils import create_config
+from exogym.aux.utils import create_config
 
 import json
 import os
 from datetime import datetime
 import csv
+from typing import Literal
 
 
 class Logger:
@@ -21,12 +22,16 @@ class Logger:
 
         self.step = 0
         self.current_lr = 0
+        self.examples_trained = 0
 
     def log(self, data: dict):
         pass
 
     def log_loss(self, loss: float, name: str):
         pass
+
+    def log_examples_trained(self, examples: int):
+        self.examples_trained += examples
 
     def log_train(self, loss: float):
         self.pbar.update(1)
@@ -53,6 +58,7 @@ class WandbLogger(Logger):
         train_node=None,
         wandb_project: str = None,
         run_name: str = None,
+        x_axis: Literal['step', 'examples'] = 'step',
     ):
 
         try:
@@ -66,6 +72,7 @@ class WandbLogger(Logger):
 
         self.wandb_project = wandb_project
         self.run_name = run_name or None
+        self.x_axis = x_axis
 
         # Create wandb configuration using the utility function
         wandb_config = create_config(
@@ -107,7 +114,10 @@ class WandbLogger(Logger):
 
         if hasattr(self, "run_name"):
             data = {f"{name}_loss": loss, f"{name}_perplexity": float(np.exp(loss))}
-            wandb.log(data, step=self.step)
+            if self.x_axis == 'step':
+                wandb.log(data, step=self.step)
+            elif self.x_axis == 'examples':
+                wandb.log(data, step=self.examples_trained)
 
     def log_train(self, loss: float):
         import wandb
@@ -120,7 +130,10 @@ class WandbLogger(Logger):
             if self.current_lr:
                 data["lr"] = self.current_lr
 
-            wandb.log(data, step=self.step)
+            if self.x_axis == 'step':
+                wandb.log(data, step=self.step)
+            elif self.x_axis == 'examples':
+                wandb.log(data, step=self.examples_trained)
 
         self.pbar.update(1)
         self.pbar.set_postfix(
@@ -129,6 +142,16 @@ class WandbLogger(Logger):
                 "lr": f"{self.current_lr:.6f}",
             }
         )
+
+    def log_info(self, value: float, name: str):
+        import wandb
+
+        if hasattr(self, "run_name"):
+            data = {name: value}
+            if self.x_axis == 'step':
+                wandb.log(data, step=self.step)
+            elif self.x_axis == 'examples':
+                wandb.log(data, step=self.examples_trained)
 
 
 class CSVLogger(Logger):
@@ -161,7 +184,8 @@ class CSVLogger(Logger):
 
         # Create CSV files with headers
         self._init_csv_file(
-            self.train_csv_path, ["step", "train_loss", "train_perplexity", "lr"]
+            self.train_csv_path,
+            ["step", "examples_trained", "train_loss", "train_perplexity", "lr"],
         )
         self._init_csv_file(
             self.val_csv_path,
@@ -269,6 +293,7 @@ class CSVLogger(Logger):
         """Log training loss to CSV"""
         data = {
             "step": self.step,
+            "examples_trained": self.examples_trained,
             "train_loss": loss,
             "train_perplexity": float(np.exp(loss)),
         }
@@ -285,3 +310,7 @@ class CSVLogger(Logger):
                 "lr": f"{self.current_lr:.6f}",
             }
         )
+
+    def log_info(self, value: float, name: str):
+        """Log training loss to CSV"""
+        raise NotImplementedError('log_info not implemented for CSV logging.')

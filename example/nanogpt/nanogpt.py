@@ -160,7 +160,10 @@ class GPTConfig:
     @classmethod
     def gpt2_small(cls):
         return cls(n_layer=4, n_head=4, n_embd=128)
-        # return cls(n_layer=4, n_head=8, n_embd=256)
+
+    @classmethod
+    def gpt2_sbase(cls):
+        return cls(n_layer=8, n_head=8, n_embd=512)
 
     @classmethod
     def gpt2_base(cls):

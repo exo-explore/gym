@@ -8,7 +8,7 @@ from typing import Dict, Any
 
 from .communicate import all_reduce
 
-from exogym.utils import LogModule
+from exogym.aux.utils import LogModule
 
 from abc import ABC, abstractmethod
 
@@ -45,6 +45,9 @@ class Strategy(ABC, LogModule):
         self.num_nodes = num_nodes
 
         self.local_step = 0
+
+        if hasattr(self, 'optim_spec'):
+            self.optim = self.optim_spec.build(model)
 
     @abstractmethod
     def step(self):

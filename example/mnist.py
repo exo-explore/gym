@@ -1,5 +1,4 @@
-# mnist_compare_strategies_big.py  (2-space indent preserved ✨)
-from exogym.trainer import LocalTrainer
+from exogym.trainer import Trainer
 from exogym.strategy.diloco import DiLoCoStrategy
 from exogym.strategy.sparta import SPARTAStrategy
 from exogym.strategy.strategy import SimpleReduceStrategy
@@ -101,11 +100,12 @@ def run_sweep():
         ("simplereduce", SimpleReduceStrategy),
     ]:
         model = ModelWrapper(CNN())
-        trainer = LocalTrainer(model, train_ds, val_ds)
+        trainer = Trainer(model, train_ds, val_ds)
 
         strategy = Strat(
             optim_spec=optim_spec,
-            H=10,
+            H=20,
+            p=0.05,
             lr_scheduler="lambda_cosine",
             lr_scheduler_kwargs={"warmup_steps": 100, "cosine_anneal": True},
         )
@@ -121,7 +121,7 @@ def run_sweep():
             val_size=len(val_ds),  # evaluate on the full 10 000 test set
             val_interval=10,
             # wandb_project="mnist-compare",
-            run_name=f"{name}_big",
+            # run_name=f"{name}",
         )
 
 
