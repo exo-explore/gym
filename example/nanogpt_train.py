@@ -59,8 +59,8 @@ def arg_parse():
         help="which dataset to use (shakespeare, wikitext, code, owt)",
     )
     parser.add_argument("--start_pc", type=float, default=0.0)
-    parser.add_argument("--end_pc", type=float, default=0.04)
-    parser.add_argument("--val_start_pc", type=float, default=0.99)
+    parser.add_argument("--end_pc", type=float, default=0.9)
+    parser.add_argument("--val_start_pc", type=float, default=0.9)
     parser.add_argument("--val_end_pc", type=float, default=1.0)
     parser.add_argument("--block_size", type=int, default=1024)
 
@@ -78,7 +78,7 @@ def arg_parse():
 
     # Optimization arguments
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--minibatch_size", type=int, default=8)
+    parser.add_argument("--minibatch_size", type=int, default=None)
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--max_norm", type=float, default=1.0)
     parser.add_argument("--warmup_steps", type=int, default=1000)
