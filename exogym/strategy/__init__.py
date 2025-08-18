@@ -9,7 +9,6 @@ from .communicate_optimize_strategy import CommunicateOptimizeStrategy
 
 from .sparta_diloco import SPARTADiLoCoStrategy
 from .demo import DeMoStrategy
-from .dgc import DGCStrategy
 
 __all__ = [
     "Strategy",
@@ -21,5 +20,4 @@ __all__ = [
     "CommunicateOptimizeStrategy",
     "SPARTADiLoCoStrategy",
     "DeMoStrategy",
-    "DGCStrategy",
 ]
