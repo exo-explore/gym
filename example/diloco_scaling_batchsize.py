@@ -61,66 +61,72 @@ def main():
 
 
     batch_size_multiplier_list = [1, 2, 4, 8, 16, 32]
+    # K_list = [0, 1, 2, 4]  # K=0 now represents SimpleReduceStrategy
+    K_list = [4]  # K=0 now represents SimpleReduceStrategy
 
-    for batch_size_multiplier in batch_size_multiplier_list:
-        global_batch = batch_size_multiplier * BASE_BATCH_SIZE
-        strategy = SimpleReduceStrategy(
-            optim_spec=OptimSpec(torch.optim.AdamW, lr=0.001 * batch_size_multiplier),
-            lr_scheduler="lambda_cosine",
-            lr_scheduler_kwargs={
-                "warmup_steps": 1024 // batch_size_multiplier,
-                "cosine_anneal": True,
-            },
-            max_norm=1.0,
-        )
-
-        trainer.fit(
-            num_epochs=1,
-            max_steps=TOTAL_TOKENS // global_batch,
-            strategy=strategy,
-            num_nodes=1,
-            device="mps",
-            batch_size=global_batch // SEQ_LEN,
-            shuffle=True,
-            val_size=512,
-            val_interval=100,
-            wandb_project="DiLoCo-Batchsize-Scaling",
-            run_name=f"ddp-batchsize{global_batch}",
-            log_x_axis="examples",
-        )
-
-        for K in [1, 2, 4]:
-            strategy = DiLoCoStrategy(
-                optim_spec=OptimSpec(torch.optim.AdamW, lr=0.001 * batch_size_multiplier),
-                lr_scheduler="lambda_cosine",
-                lr_scheduler_kwargs={
-                    "warmup_steps": 1024 // batch_size_multiplier,
-                    "cosine_anneal": True,
-                },
-                max_norm=1.0,
-                H=H,
-            )
-
-            # Train it!
+    for K in K_list:
+        for batch_size_multiplier in batch_size_multiplier_list:
+            global_batch = batch_size_multiplier * BASE_BATCH_SIZE
             
-            local_batch_size = global_batch // SEQ_LEN // K
-            local_minibatch_size = min(32 // K, local_batch_size)  # Ensure minibatch_size <= batch_size
+            if K == 0:
+                # K=0 corresponds to SimpleReduceStrategy
+                strategy = SimpleReduceStrategy(
+                    optim_spec=OptimSpec(torch.optim.AdamW, lr=0.001 * batch_size_multiplier),
+                    lr_scheduler="lambda_cosine",
+                    lr_scheduler_kwargs={
+                        "warmup_steps": 1024 // batch_size_multiplier,
+                        "cosine_anneal": True,
+                    },
+                    max_norm=1.0,
+                )
 
-            trainer.fit(
-                num_epochs=1,
-                max_steps=TOTAL_TOKENS // global_batch,
-                strategy=strategy,
-                num_nodes=K,
-                device="mps",
-                batch_size=local_batch_size,
-                minibatch_size=local_minibatch_size,
-                shuffle=True,
-                val_size=256,
-                val_interval=128 // batch_size_multiplier,
-                wandb_project="DiLoCo-Batchsize-Scaling",
-                run_name=f"diloco-K{K}-batchsize{global_batch}",
-                log_x_axis="examples",
-            )
+                trainer.fit(
+                    num_epochs=1,
+                    max_steps=TOTAL_TOKENS // global_batch,
+                    strategy=strategy,
+                    num_nodes=1,
+                    device="mps",
+                    batch_size=global_batch // SEQ_LEN,
+                    shuffle=True,
+                    val_size=512,
+                    val_interval=100,
+                    wandb_project="DiLoCo-Batchsize-Scaling",
+                    run_name=f"ddp-batchsize{global_batch}",
+                    log_x_axis="examples",
+                )
+            else:
+                # K > 0 corresponds to DiLoCoStrategy with K nodes
+                strategy = DiLoCoStrategy(
+                    optim_spec=OptimSpec(torch.optim.AdamW, lr=0.001 * batch_size_multiplier),
+                    lr_scheduler="lambda_cosine",
+                    lr_scheduler_kwargs={
+                        "warmup_steps": 1024 // batch_size_multiplier,
+                        "cosine_anneal": True,
+                    },
+                    max_norm=1.0,
+                    H=H,
+                )
+
+                # Train it!
+                
+                local_batch_size = global_batch // SEQ_LEN // K
+                local_minibatch_size = min(32 // K, local_batch_size)  # Ensure minibatch_size <= batch_size
+
+                trainer.fit(
+                    num_epochs=1,
+                    max_steps=TOTAL_TOKENS // global_batch,
+                    strategy=strategy,
+                    num_nodes=K,
+                    device="mps",
+                    batch_size=local_batch_size,
+                    minibatch_size=local_minibatch_size,
+                    shuffle=True,
+                    val_size=256,
+                    val_interval=128 // batch_size_multiplier,
+                    wandb_project="DiLoCo-Batchsize-Scaling",
+                    run_name=f"diloco-K{K}-batchsize{global_batch}",
+                    log_x_axis="examples",
+                )
 
 
 if __name__ == "__main__":
