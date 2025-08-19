@@ -61,7 +61,7 @@ def main():
         model,
         train_dataset,
         val_dataset,
-        start_port=args.port + arg_parser.only_run if arg_parser.only_run else 0,
+        start_port=args.port + args.only_run if args.only_run else 0,
     )
 
 
