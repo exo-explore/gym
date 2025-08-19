@@ -64,6 +64,7 @@ def build_cmd(args, batch_size, port):
         "--save_dir", args.save_dir,
         "--start_port", str(port),
         "--run_name", f"{args.run_name_prefix}{batch_size}",
+        "--log_x_axis", "examples",
     ]
     if args.minibatch_size is not None:
         cmd += ["--minibatch_size", str(args.minibatch_size)]

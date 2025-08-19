@@ -95,6 +95,7 @@ def arg_parse():
     parser.add_argument("--checkpoint_interval", type=int, default=None)
     parser.add_argument("--save_dir", type=str, default="./checkpoints")
     parser.add_argument("--start_port", type=int, default=15000)
+    parser.add_argument("--log_x_axis", type=str, default="step", choices=["step", "examples"], help="X-axis for wandb logging")
 
     # Strategy selection
     parser.add_argument(
@@ -337,7 +338,8 @@ def main():
         correlation_interval=args.correlation_interval,
         save_dir=args.save_dir,
         wandb_project=args.wandb_project,
-        run_name=args.run_name or gen_run_name(args, args.strategy)
+        run_name=args.run_name or gen_run_name(args, args.strategy),
+        log_x_axis=args.log_x_axis
     )
 
 
