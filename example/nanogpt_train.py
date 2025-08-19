@@ -94,6 +94,7 @@ def arg_parse():
     parser.add_argument("--correlation_interval", type=int, default=None)
     parser.add_argument("--checkpoint_interval", type=int, default=None)
     parser.add_argument("--save_dir", type=str, default="./checkpoints")
+    parser.add_argument("--start_port", type=int, default=15000)
 
     # Strategy selection
     parser.add_argument(
@@ -315,6 +316,7 @@ def main():
         model,
         train_dataset,
         val_dataset,
+        start_port=args.start_port,
     )
 
     # Create strategy based on selection
