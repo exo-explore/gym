@@ -14,7 +14,7 @@ H = 30
 TOTAL_TOKENS = (2**15) * (2**13)  # 1024 steps for smallest GBS
 # TOTAL_TOKENS = (2**14) * 32
 SEQ_LEN = 2**10
-BASE_BATCH_SIZE = 2**14
+BASE_BATCH_SIZE = 2**12
 
 def main():
     arg_parser = argparse.ArgumentParser()
@@ -93,6 +93,7 @@ def main():
                     wandb_project="DiLoCo-Batchsize-Scaling",
                     run_name=f"ddp-batchsize{global_batch}",
                     log_x_axis="examples",
+                    kwargs={'dataset_name':dataset},
                 )
             else:
                 # K > 0 corresponds to DiLoCoStrategy with K nodes
@@ -108,7 +109,7 @@ def main():
                 )
 
                 # Train it!
-                
+
                 local_batch_size = global_batch // SEQ_LEN // K
                 local_minibatch_size = min(32 // K, local_batch_size)  # Ensure minibatch_size <= batch_size
 
@@ -126,6 +127,7 @@ def main():
                     wandb_project="DiLoCo-Batchsize-Scaling",
                     run_name=f"diloco-K{K}-batchsize{global_batch}",
                     log_x_axis="examples",
+                    kwargs={'dataset_name':dataset},
                 )
 
 
