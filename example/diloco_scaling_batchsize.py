@@ -14,7 +14,8 @@ H = 30
 TOTAL_TOKENS = (2**15) * (2**13)  # 1024 steps for smallest GBS
 # TOTAL_TOKENS = (2**14) * 32
 SEQ_LEN = 2**10
-BASE_BATCH_SIZE = 2**15
+SHAKESPEARE_BASE_BATCH_SIZE = 2**10
+OWT_BASE_BATCH_SIZE = 2**15
 WARMUP_STEPS = 1024
 
 def main():
@@ -48,10 +49,13 @@ def main():
     if dataset == "shakespeare":
         gpt_config = GPTConfig.gpt2_small()
         gpt_config.dropout = 0.2
+        BASE_BATCH_SIZE = SHAKESPEARE_BASE_BATCH_SIZE
     elif dataset == "owt" and device == 'mps':
         gpt_config = GPTConfig.gpt_sbase()
+        BASE_BATCH_SIZE = OWT_BASE_BATCH_SIZE
     elif dataset == "owt" and device == 'cuda':
         gpt_config = GPTConfig.gpt2_base()
+        BASE_BATCH_SIZE = OWT_BASE_BATCH_SIZE
     else:
         raise ValueError(f"Invalid dataset: {dataset} on device: {device}")
 
