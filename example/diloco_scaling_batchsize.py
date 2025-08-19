@@ -15,14 +15,14 @@ TOTAL_TOKENS = (2**15) * (2**13)  # 1024 steps for smallest GBS
 # TOTAL_TOKENS = (2**14) * 32
 SEQ_LEN = 2**10
 BASE_BATCH_SIZE = 2**15
-WARMUP_TOKENS = BASE_BATCH_SIZE * 256  # Same as 1024 steps for smallest batch size
+WARMUP_STEPS = 1024
 
 def main():
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("--dataset", type=str, default="shakespeare")
     arg_parser.add_argument("--port", type=int, default=12355)
     arg_parser.add_argument("--only_run", type=int, default=None, help="Only run the i-th training run (0-indexed)")
-    arg_parser.add_argument('--base_lr', type=float, default=0.004)
+    arg_parser.add_argument('--base_lr', type=float, default=0.001)
     args = arg_parser.parse_args()
     dataset = args.dataset
 
@@ -87,15 +87,15 @@ def main():
                 continue
                 
             global_batch = batch_size_multiplier * BASE_BATCH_SIZE
-            warmup_steps = WARMUP_TOKENS // global_batch
+            lr = min(args.base_lr * batch_size_multiplier, 0.003)
             
             if K == 0:
                 # K=0 corresponds to SimpleReduceStrategy
                 strategy = SimpleReduceStrategy(
-                    optim_spec=OptimSpec(torch.optim.AdamW, lr=args.base_lr * batch_size_multiplier),
+                    optim_spec=OptimSpec(torch.optim.AdamW, lr=lr),
                     lr_scheduler="lambda_cosine",
                     lr_scheduler_kwargs={
-                        "warmup_steps": warmup_steps,
+                        "warmup_steps": WARMUP_STEPS,
                         "cosine_anneal": True,
                     },
                     max_norm=1.0,
@@ -119,10 +119,10 @@ def main():
             else:
                 # K > 0 corresponds to DiLoCoStrategy with K nodes
                 strategy = DiLoCoStrategy(
-                    optim_spec=OptimSpec(torch.optim.AdamW, lr=args.base_lr * batch_size_multiplier),
+                    optim_spec=OptimSpec(torch.optim.AdamW, lr=lr),
                     lr_scheduler="lambda_cosine",
                     lr_scheduler_kwargs={
-                        "warmup_steps": warmup_steps,
+                        "warmup_steps": WARMUP_STEPS,
                         "cosine_anneal": True,
                     },
                     max_norm=1.0,
