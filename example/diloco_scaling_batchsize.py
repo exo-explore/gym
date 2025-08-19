@@ -51,7 +51,7 @@ def main():
         gpt_config.dropout = 0.2
         BASE_BATCH_SIZE = SHAKESPEARE_BASE_BATCH_SIZE
     elif dataset == "owt" and device == 'mps':
-        gpt_config = GPTConfig.gpt_sbase()
+        gpt_config = GPTConfig.gpt2_sbase()
         BASE_BATCH_SIZE = OWT_BASE_BATCH_SIZE
     elif dataset == "owt" and device == 'cuda':
         gpt_config = GPTConfig.gpt2_base()
