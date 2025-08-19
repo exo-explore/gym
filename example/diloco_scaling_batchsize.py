@@ -14,7 +14,7 @@ H = 30
 TOTAL_TOKENS = (2**15) * (2**13)  # 1024 steps for smallest GBS
 # TOTAL_TOKENS = (2**14) * 32
 SEQ_LEN = 2**10
-BASE_BATCH_SIZE = 2**12
+BASE_BATCH_SIZE = 2**10
 
 def main():
     arg_parser = argparse.ArgumentParser()
