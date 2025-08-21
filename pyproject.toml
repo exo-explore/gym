@@ -31,32 +31,16 @@ dependencies = [
     "numpy>=1.20.0",
     "tqdm>=4.60.0",
     "datasets>=2.0.0",
-]
-
-[project.optional-dependencies]
-wandb = ["wandb>=0.12.0"]
-gpt = ["transformers>=4.29.0"]
-demo = [
-    "einops>=0.6.0"
-]
-examples = ["torchvision>=0.15.0"]
-dev = [
     "wandb>=0.12.0",
+    "transformers>=4.29.0",
     "boto3>=1.20.0",
     "einops>=0.6.0",
     "torchvision>=0.15.0",
-    "transformers>=4.29.0",
     "pytest>=7.0.0",
     "black>=22.0.0",
     "flake8>=4.0.0",
-    "mypy>=0.950"
-]
-all = [
-    "wandb>=0.12.0",
-    "transformers>=4.29.0",
-    "boto3>=1.20.0",
-    "einops>=0.6.0",
-    "torchvision>=0.15.0"
+    "mypy>=0.950",
+    "matplotlib>=3.5.0"
 ]
 
 [project.urls]
