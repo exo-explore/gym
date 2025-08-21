@@ -71,7 +71,7 @@ def arg_parse():
     parser.add_argument(
         "--model_size",
         type=str,
-        default="base",
+        default=None,
         choices=["small", "base", "medium", "large", "xl"],
     )
     parser.add_argument("--dropout", type=float, default=None)
@@ -270,6 +270,13 @@ def create_strategy(args):
 def main():
     parser = arg_parse()
     args = parser.parse_args()
+
+    # Set default model size based on dataset if not specified
+    if args.model_size is None:
+        if args.dataset == "shakespeare":
+            args.model_size = "small"
+        elif args.dataset == "owt":
+            args.model_size = "base"
 
     ## Example of dataset factory for OWT.
     if args.dataset == "owt" or False:
