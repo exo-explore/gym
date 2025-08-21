@@ -2,7 +2,7 @@
 
 # EXO Gym
 
-<img src="docs/macs.png" alt="EXO Gym" width="50%">
+<img src="docs/imagination.png" alt="EXO Gym" width="50%">
 
 <!-- New image ideas: A macbook with a loss curve on it, with a 'thinking bubbles' coming out of the macbook, and in the bubble there is a stack of 4 H100 GPUs. It's like the laptop is imagining the cluster.  -->
 
@@ -40,21 +40,14 @@ Implementing a new algo from scratch takes as little at 5 lines 🚀 -->
 
 ## Installation
 
-### Basic Installation
-Install with core dependencies only:
+### Dependencies
+
+- `python>=3.10`
+
+### Installation
 ```bash
 pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ exogym
 ```
-
-### Installation with Optional Features
-
-Optional feature flags allowed are:
-
-```bash
-wandb,gpt,demo,examples,dev,all
-```
-
-For example, `pip install exogym[demo]`
 
 ### Development Installation
 
@@ -62,7 +55,8 @@ To install for development:
 ```bash
 git clone https://github.com/exo-explore/gym.git exogym
 cd exogym
-pip install -e ".[dev]"
+python3.13 -m venv .venv && source .venv/bin/activate
+pip install -e .
 ```
 
 ## Usage
@@ -83,6 +77,8 @@ python example/nanogpt_train.py --dataset shakespeare --strategy diloco
 
 
 ### Custom Training
+
+Strategies (eg. DiLoCo, SPARTA) are portable across domains. A custom dataset and model can be trained with a distributed algorithm like so:
 
 ```python
 from exogym import Trainer
