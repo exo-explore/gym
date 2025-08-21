@@ -223,7 +223,6 @@ def run_sweep(use_wandb=False):
             num_nodes=4,
             device=device,
             batch_size=256,  # larger batch is fine with this model
-            minibatch_size=256,
             val_size=len(val_ds),  # evaluate on the full 10 000 test set
             val_interval=10,
             wandb_project="mnist-compare" if use_wandb else None,
