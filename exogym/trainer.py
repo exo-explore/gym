@@ -116,7 +116,7 @@ class Trainer:
         device: str = None,
         devices: list[int] = None,
         batch_size: int = 16,
-        minibatch_size: int = 16,
+        minibatch_size: int = None,
         shuffle: bool = True,
         val_size: int = 64,
         val_interval: int = 100,
@@ -127,21 +127,11 @@ class Trainer:
         dataloader_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
-        """
-        Train the model. For single process training (num_nodes=1), runs directly.
-        For multi-process training, delegates to launch_ddp for notebook safety.
-        Returns the final trained model (averaged across nodes for multi-node training).
-        """
         # assert val_size // batch_size > 0, f"val_size must be geq batch_size: {val_size} // {batch_size}"
         assert batch_size > 0, 'local batch size needs to be nonzero'
-        assert minibatch_size <= batch_size, f'minibatch_size ({minibatch_size}) must be <= batch_size ({batch_size}) for gradient accumulation to work properly'
+        assert minibatch_size <= batch_size, f'minibatch_size ({minibatch_size}) must be <= batch_size ({batch_size}) for gradient accumulation'
 
-        self.port += 1
-
-        # Move a *copy* of the model to CPU so that pickling for mp.spawn does not attempt to share GPU storage.
-        cpu_model = copy.deepcopy(self.model_orig).cpu()
-
-        config = TrainConfig(
+        self.config = TrainConfig(
             model=cpu_model,
             train_dataset=self.train_dataset,
             val_dataset=self.val_dataset,
@@ -164,20 +154,31 @@ class Trainer:
             dataloader_kwargs=dataloader_kwargs or {},
             kwargs=kwargs,
         )
+
+        minibatch_size = self.find_minibatch_size(
+            num_nodes,
+            batch_size,
+        )
+
+        self.port += 1
+
+        # Move a *copy* of the model to CPU so that pickling for mp.spawn does not attempt to share GPU storage.
+        cpu_model = copy.deepcopy(self.model_orig).cpu()
+
         
         manager = mp.Manager()
         result_queue = manager.Queue()
 
         mp.spawn(
             _worker,
-            args=(config, result_queue),
-            nprocs=config.num_nodes,
+            args=(self.config, result_queue),
+            nprocs=self.config.num_nodes,
             start_method="spawn",
             join=True,
         )
 
         model_states = {}
-        for _ in range(config.num_nodes):
+        for _ in range(self.config.num_nodes):
             rank, state_dict = result_queue.get()
             model_states[rank] = state_dict
 
@@ -187,4 +188,19 @@ class Trainer:
         final_model.load_state_dict(averaged_state_dict)
         return final_model
 
+    def find_minibatch_size(self, num_nodes: int, batch_size: int):
+        search_minibatch = batch_size
 
+        config = copy.deepcopy(self.config)
+        config.num_nodes = 1
+        config.max_steps = 3
+
+        while search_minibatch > 1:
+            config.minibatch_size = search_minibatch
+
+            train_node = TrainNode(config)
+            train_node.train()
+
+            return search_minibatch
+
+        raise Exception('minibatch size of 1 doesn\'t fit in your device {device}') 
