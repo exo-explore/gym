@@ -331,7 +331,7 @@ def main():
         num_nodes=args.num_nodes,
         device=args.device,
         batch_size=args.batch_size,
-        minibatch_size=args.minibatch_size or args.batch_size,
+        minibatch_size=args.minibatch_size,
         shuffle=(args.dataset != "owt"),
         val_size=args.val_size,
         val_interval=args.val_interval,
