@@ -8,11 +8,88 @@ from exogym.common import TrainConfig
 from exogym.aux.utils import print_dataset_size, _average_model_states
 
 import os
+import time
+import threading
+import psutil
+import gc
 from abc import abstractmethod
 import copy
 from dataclasses import dataclass
 from typing import Optional, List, Any, Dict, Union, Callable
 from collections import OrderedDict
+
+
+def _get_mps_allocated_bytes():
+    """Get MPS allocated memory in bytes, defensively handling API variations."""
+    # Be defensive about PyTorch versions / API surface.
+    if hasattr(torch, "mps") and torch.backends.mps.is_available():
+        for name in ("current_allocated_memory", "allocated_memory", "memory_allocated"):
+            fn = getattr(torch.mps, name, None)
+            if callable(fn):
+                try:
+                    return int(fn())
+                except Exception:
+                    pass
+    return 0
+
+
+class _PeakMemSampler:
+    """Background thread that samples RSS and MPS memory at high frequency to track peak usage."""
+    
+    def __init__(self, include_mps: bool):
+        self.proc = psutil.Process(os.getpid())
+        self.include_mps = include_mps and hasattr(torch, "mps") and torch.backends.mps.is_available()
+        self._stop = threading.Event()
+        self.peak_rss = self._rss_now()
+        self.peak_mps = 0
+
+    def _rss_now(self) -> int:
+        """Get current RSS usage for parent + any dataloader workers, etc."""
+        rss = self.proc.memory_info().rss
+        for c in self.proc.children(recursive=True):
+            try:
+                rss += c.memory_info().rss
+            except psutil.NoSuchProcess:
+                pass
+        return rss
+
+    def start(self, period_s: float = 0.01):
+        """Start the background sampling thread at ~100 Hz."""
+        self._thr = threading.Thread(target=self._run, args=(period_s,), daemon=True)
+        self._thr.start()
+
+    def _run(self, period_s: float):
+        """Background thread that continuously samples memory usage."""
+        while not self._stop.is_set():
+            rss = self._rss_now()
+            if rss > self.peak_rss:
+                self.peak_rss = rss
+            if self.include_mps:
+                try:
+                    m = _get_mps_allocated_bytes()
+                    if m > self.peak_mps:
+                        self.peak_mps = m
+                except Exception:
+                    pass
+            time.sleep(period_s)
+
+    def stop(self):
+        """Stop sampling and take final measurements after synchronization."""
+        self._stop.set()
+        # Final sync/samples to catch last kernels
+        if self.include_mps:
+            try:
+                torch.mps.synchronize()
+                m = _get_mps_allocated_bytes()
+                if m > self.peak_mps:
+                    self.peak_mps = m
+            except Exception:
+                pass
+        # One last RSS sample
+        rss = self._rss_now()
+        if rss > self.peak_rss:
+            self.peak_rss = rss
+        self._thr.join()
 
 
 def _build_connection(config: TrainConfig):
@@ -193,130 +270,119 @@ class Trainer:
         return final_model
 
     def find_minibatch_size(self, num_nodes: int, batch_size: int):
-        import psutil
-        import gc
-
         print(f'Profiling system & training to find optimal minibatch size...')
-        
-        # Calculate available memory based on device type
+
+        # -------- available memory & device selection ----------
         if torch.cuda.is_available():
-            # For CUDA, get total memory across all available GPUs
-            num_gpus = torch.cuda.device_count()
-            if self.config.devices is not None:
-                num_gpus = len(self.config.devices)
-            
-            # Get memory for a single GPU (assuming homogeneous)
+            num_gpus = len(self.config.devices) if getattr(self.config, "devices", None) else torch.cuda.device_count()
             single_gpu_memory = torch.cuda.get_device_properties(0).total_memory
             available_memory = single_gpu_memory * num_gpus
             memory_type = "GPU"
-            
             print(f"Detected {num_gpus} GPU(s) with {single_gpu_memory / (1024**3):.2f} GB each")
             print(f"Total GPU memory available: {available_memory / (1024**3):.2f} GB")
         else:
-            # For CPU/MPS, use system memory
             available_memory = psutil.virtual_memory().available
             memory_type = "system"
             print(f"Using {memory_type} memory: {available_memory / (1024**3):.2f} GB available")
-        
+
         search_minibatch = batch_size
         config = copy.deepcopy(self.config)
         config.num_nodes = 1
-        config.rank = 0  # Single rank for profiling
+        config.rank = 0
         config.max_steps = 3
-        
-        # Set up device properly for profiling
-        if config.device == "" or config.device is None:
+        config.kwargs = config.kwargs.copy() if getattr(config, "kwargs", None) else {}
+        config.kwargs['disable_logging'] = True
+
+        if not getattr(config, "device", None):
             if torch.cuda.is_available():
                 config.device = "cuda:0"
             elif torch.backends.mps.is_available():
                 config.device = "mps"
             else:
                 config.device = "cpu"
-        
-        # Move model to the correct device for profiling
+
         config.model = config.model.to(config.device)
-        
-        # Initialize strategy for the profiling node
         config.strategy = copy.deepcopy(config.strategy)
         config.strategy._init_node(config.model, config.rank, config.num_nodes)
-        
-        # Initialize a temporary process group for profiling
+
         need_cleanup = False
         if not dist.is_initialized():
-            os.environ["MASTER_ADDR"] = "localhost"
-            os.environ["MASTER_PORT"] = str(self.port + 100)  # Use different port to avoid conflicts
-            
-            if "cuda" in str(config.device):
-                backend = "nccl"
-            else:
-                backend = "gloo"
-            
+            os.environ.setdefault("MASTER_ADDR", "localhost")
+            os.environ.setdefault("MASTER_PORT", str(self.port + 100))
+            backend = "nccl" if "cuda" in str(config.device) else "gloo"
             dist.init_process_group(backend, rank=0, world_size=1)
             need_cleanup = True
-        
+
         try:
             while search_minibatch > 0:
                 config.minibatch_size = search_minibatch
-                
+                config.port -= 1
+
                 try:
-                    # Clear cache and collect garbage before testing
+                    # ---- clear caches ----
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
-                    gc.collect()
-                    
-                    # Record memory before training
-                    if torch.cuda.is_available():
                         torch.cuda.reset_peak_memory_stats()
-                        mem_before = torch.cuda.memory_allocated()
-                    
-                    # Create and run train node
+                    elif hasattr(torch, "mps") and torch.backends.mps.is_available():
+                        try:
+                            torch.mps.empty_cache()
+                        except Exception:
+                            pass
+                    gc.collect()
+
+                    # ---- start peak sampler for MPS/CPU ----
+                    use_mps_or_cpu = (not torch.cuda.is_available())
+                    sampler = _PeakMemSampler(include_mps=use_mps_or_cpu)
+                    rss_before = sampler.proc.memory_info().rss if use_mps_or_cpu else 0
+                    sampler.start(period_s=0.01)  # ~100 Hz
+
+                    # ---- run training trial ----
                     train_node = TrainNode(config)
                     train_node.train()
-                    
-                    # Measure peak memory usage
+
+                    # ---- stop sampler & read peaks ----
+                    sampler.stop()
+
                     if torch.cuda.is_available():
                         peak_memory = torch.cuda.max_memory_allocated()
-                        actual_usage = peak_memory - mem_before
+                        actual_usage = peak_memory  # already a peak; no need to subtract
                     else:
-                        # For CPU/MPS, estimate based on process memory
-                        process = psutil.Process()
-                        actual_usage = process.memory_info().rss
-                    
-                    # Calculate total memory needed for all nodes
+                        # Peak delta over baseline. Also consider MPS counter if present.
+                        peak_delta_rss = max(0, sampler.peak_rss - rss_before)
+                        peak_mps_bytes = sampler.peak_mps
+                        actual_usage = max(peak_delta_rss, peak_mps_bytes)
+                        actual_usage = int(actual_usage * 1.3)  # ~30% safety margin for fragmentation
+
                     total_memory_needed = actual_usage * num_nodes
-                    
-                    # Check if this fits in available memory (with 10% safety margin)
-                    if total_memory_needed < available_memory * 0.9:
+
+                    memory_threshold = available_memory * (0.9 if torch.cuda.is_available() else 0.5)
+                    if total_memory_needed < memory_threshold:
                         print(f"Found suitable minibatch_size={search_minibatch}")
-                        print(f"Estimated memory per node: {actual_usage / (1024**3):.2f} GB")
+                        print(f"Estimated memory per node (peak): {actual_usage / (1024**3):.2f} GB")
                         print(f"Total for {num_nodes} nodes: {total_memory_needed / (1024**3):.2f} GB")
                         print(f"Available {memory_type} memory: {available_memory / (1024**3):.2f} GB")
                         return search_minibatch
                     else:
-                        print(f"minibatch_size={search_minibatch} would use {total_memory_needed / (1024**3):.2f} GB, reducing...")
-                        
+                        print(f"minibatch_size={search_minibatch} would use {total_memory_needed / (1024**3):.2f} GB (peak), reducing...")
+
                 except (torch.cuda.OutOfMemoryError, RuntimeError, MemoryError) as e:
-                    # Handle OOM errors gracefully for CUDA, MPS, and CPU
                     if "out of memory" in str(e).lower() or isinstance(e, MemoryError):
                         print(f"OOM with minibatch_size={search_minibatch}: {str(e)}")
-                        
-                        # Clear cache to recover
                         if torch.cuda.is_available():
                             torch.cuda.empty_cache()
-                        elif hasattr(torch, 'mps') and torch.backends.mps.is_available():
-                            # MPS doesn't have explicit cache clearing yet, but gc helps
-                            pass
+                        elif hasattr(torch, "mps") and torch.backends.mps.is_available():
+                            try:
+                                torch.mps.empty_cache()
+                            except Exception:
+                                pass
                         gc.collect()
                     else:
-                        # Re-raise if it's not a memory-related RuntimeError
                         raise
-                    
-                # Reduce minibatch size and try again
-                search_minibatch = search_minibatch // 2
-            
+
+                search_minibatch //= 2
+
             raise Exception(f'Cannot find suitable minibatch size for device {config.device}')
-            
+
         finally:
-            # Clean up the temporary process group if we created one
             if need_cleanup:
                 dist.destroy_process_group() 
