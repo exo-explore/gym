@@ -221,65 +221,102 @@ class Trainer:
         search_minibatch = batch_size
         config = copy.deepcopy(self.config)
         config.num_nodes = 1
+        config.rank = 0  # Single rank for profiling
         config.max_steps = 3
         
-        while search_minibatch > 0:
-            config.minibatch_size = search_minibatch
+        # Set up device properly for profiling
+        if config.device == "" or config.device is None:
+            if torch.cuda.is_available():
+                config.device = "cuda:0"
+            elif torch.backends.mps.is_available():
+                config.device = "mps"
+            else:
+                config.device = "cpu"
+        
+        # Move model to the correct device for profiling
+        config.model = config.model.to(config.device)
+        
+        # Initialize strategy for the profiling node
+        config.strategy = copy.deepcopy(config.strategy)
+        config.strategy._init_node(config.model, config.rank, config.num_nodes)
+        
+        # Initialize a temporary process group for profiling
+        need_cleanup = False
+        if not dist.is_initialized():
+            os.environ["MASTER_ADDR"] = "localhost"
+            os.environ["MASTER_PORT"] = str(self.port + 100)  # Use different port to avoid conflicts
             
-            try:
-                # Clear cache and collect garbage before testing
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                gc.collect()
+            if "cuda" in str(config.device):
+                backend = "nccl"
+            else:
+                backend = "gloo"
+            
+            dist.init_process_group(backend, rank=0, world_size=1)
+            need_cleanup = True
+        
+        try:
+            while search_minibatch > 0:
+                config.minibatch_size = search_minibatch
                 
-                # Record memory before training
-                if torch.cuda.is_available():
-                    torch.cuda.reset_peak_memory_stats()
-                    mem_before = torch.cuda.memory_allocated()
-                
-                # Create and run train node
-                train_node = TrainNode(config)
-                train_node.train()
-                
-                # Measure peak memory usage
-                if torch.cuda.is_available():
-                    peak_memory = torch.cuda.max_memory_allocated()
-                    actual_usage = peak_memory - mem_before
-                else:
-                    # For CPU/MPS, estimate based on process memory
-                    process = psutil.Process()
-                    actual_usage = process.memory_info().rss
-                
-                # Calculate total memory needed for all nodes
-                total_memory_needed = actual_usage * num_nodes
-                
-                # Check if this fits in available memory (with 10% safety margin)
-                if total_memory_needed < available_memory * 0.9:
-                    print(f"Found suitable minibatch_size={search_minibatch}")
-                    print(f"Estimated memory per node: {actual_usage / (1024**3):.2f} GB")
-                    print(f"Total for {num_nodes} nodes: {total_memory_needed / (1024**3):.2f} GB")
-                    print(f"Available {memory_type} memory: {available_memory / (1024**3):.2f} GB")
-                    return search_minibatch
-                else:
-                    print(f"minibatch_size={search_minibatch} would use {total_memory_needed / (1024**3):.2f} GB, reducing...")
-                    
-            except (torch.cuda.OutOfMemoryError, RuntimeError, MemoryError) as e:
-                # Handle OOM errors gracefully for CUDA, MPS, and CPU
-                if "out of memory" in str(e).lower() or isinstance(e, MemoryError):
-                    print(f"OOM with minibatch_size={search_minibatch}: {str(e)}")
-                    
-                    # Clear cache to recover
+                try:
+                    # Clear cache and collect garbage before testing
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
-                    elif hasattr(torch, 'mps') and torch.backends.mps.is_available():
-                        # MPS doesn't have explicit cache clearing yet, but gc helps
-                        pass
                     gc.collect()
-                else:
-                    # Re-raise if it's not a memory-related RuntimeError
-                    raise
-                
-            # Reduce minibatch size and try again
-            search_minibatch = search_minibatch // 2
-        
-        raise Exception(f'Cannot find suitable minibatch size for device {config.device}') 
+                    
+                    # Record memory before training
+                    if torch.cuda.is_available():
+                        torch.cuda.reset_peak_memory_stats()
+                        mem_before = torch.cuda.memory_allocated()
+                    
+                    # Create and run train node
+                    train_node = TrainNode(config)
+                    train_node.train()
+                    
+                    # Measure peak memory usage
+                    if torch.cuda.is_available():
+                        peak_memory = torch.cuda.max_memory_allocated()
+                        actual_usage = peak_memory - mem_before
+                    else:
+                        # For CPU/MPS, estimate based on process memory
+                        process = psutil.Process()
+                        actual_usage = process.memory_info().rss
+                    
+                    # Calculate total memory needed for all nodes
+                    total_memory_needed = actual_usage * num_nodes
+                    
+                    # Check if this fits in available memory (with 10% safety margin)
+                    if total_memory_needed < available_memory * 0.9:
+                        print(f"Found suitable minibatch_size={search_minibatch}")
+                        print(f"Estimated memory per node: {actual_usage / (1024**3):.2f} GB")
+                        print(f"Total for {num_nodes} nodes: {total_memory_needed / (1024**3):.2f} GB")
+                        print(f"Available {memory_type} memory: {available_memory / (1024**3):.2f} GB")
+                        return search_minibatch
+                    else:
+                        print(f"minibatch_size={search_minibatch} would use {total_memory_needed / (1024**3):.2f} GB, reducing...")
+                        
+                except (torch.cuda.OutOfMemoryError, RuntimeError, MemoryError) as e:
+                    # Handle OOM errors gracefully for CUDA, MPS, and CPU
+                    if "out of memory" in str(e).lower() or isinstance(e, MemoryError):
+                        print(f"OOM with minibatch_size={search_minibatch}: {str(e)}")
+                        
+                        # Clear cache to recover
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        elif hasattr(torch, 'mps') and torch.backends.mps.is_available():
+                            # MPS doesn't have explicit cache clearing yet, but gc helps
+                            pass
+                        gc.collect()
+                    else:
+                        # Re-raise if it's not a memory-related RuntimeError
+                        raise
+                    
+                # Reduce minibatch size and try again
+                search_minibatch = search_minibatch // 2
+            
+            raise Exception(f'Cannot find suitable minibatch size for device {config.device}')
+            
+        finally:
+            # Clean up the temporary process group if we created one
+            if need_cleanup:
+                dist.destroy_process_group() 
