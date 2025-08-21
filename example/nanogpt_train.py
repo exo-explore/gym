@@ -2,6 +2,7 @@ from exogym.trainer import Trainer
 from nanogpt import GPT, GPTConfig, get_dataset
 from exogym.strategy.optim import OptimSpec
 
+import os
 import argparse
 import torch
 from functools import partial
@@ -338,7 +339,7 @@ def main():
     strategy = create_strategy(args)
 
     # Train
-    trainer.fit(
+    model = trainer.fit(
         num_epochs=args.epochs,
         max_steps=args.max_steps,
         strategy=strategy,
@@ -355,6 +356,13 @@ def main():
         run_name=args.run_name or gen_run_name(args, args.strategy),
         log_x_axis=args.log_x_axis
     )
+
+    save_dir = "checkpoints"
+    os.makedirs(save_dir, exist_ok=True)
+    run_name = args.run_name or gen_run_name(args, args.strategy)
+    model_path = os.path.join(save_dir, f"{run_name}_model.pt")
+    torch.save(model.state_dict(), model_path)
+    print(f"Model saved to {model_path}")
 
 
 if __name__ == "__main__":
