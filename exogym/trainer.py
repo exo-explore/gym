@@ -129,7 +129,11 @@ class Trainer:
     ):
         # assert val_size // batch_size > 0, f"val_size must be geq batch_size: {val_size} // {batch_size}"
         assert batch_size > 0, 'local batch size needs to be nonzero'
-        assert minibatch_size <= batch_size, f'minibatch_size ({minibatch_size}) must be <= batch_size ({batch_size}) for gradient accumulation'
+        if minibatch_size is not None:
+            assert minibatch_size <= batch_size, f'minibatch_size ({minibatch_size}) must be <= batch_size ({batch_size}) for gradient accumulation'
+
+        # Move a *copy* of the model to CPU so that pickling for mp.spawn does not attempt to share GPU storage.
+        cpu_model = copy.deepcopy(self.model_orig).cpu()
 
         self.config = TrainConfig(
             model=cpu_model,
@@ -155,15 +159,15 @@ class Trainer:
             kwargs=kwargs,
         )
 
-        minibatch_size = self.find_minibatch_size(
-            num_nodes,
-            batch_size,
-        )
+        # Auto-detect minibatch_size if not provided
+        if minibatch_size is None:
+            minibatch_size = self.find_minibatch_size(
+                num_nodes,
+                batch_size,
+            )
+            self.config.minibatch_size = minibatch_size
 
         self.port += 1
-
-        # Move a *copy* of the model to CPU so that pickling for mp.spawn does not attempt to share GPU storage.
-        cpu_model = copy.deepcopy(self.model_orig).cpu()
 
         
         manager = mp.Manager()
@@ -189,18 +193,74 @@ class Trainer:
         return final_model
 
     def find_minibatch_size(self, num_nodes: int, batch_size: int):
+        import psutil
+        import gc
+        
+        # Get available system memory
+        available_memory = psutil.virtual_memory().available
+        
         search_minibatch = batch_size
-
         config = copy.deepcopy(self.config)
         config.num_nodes = 1
         config.max_steps = 3
-
-        while search_minibatch > 1:
+        
+        while search_minibatch > 0:
             config.minibatch_size = search_minibatch
-
-            train_node = TrainNode(config)
-            train_node.train()
-
-            return search_minibatch
-
-        raise Exception('minibatch size of 1 doesn\'t fit in your device {device}') 
+            
+            try:
+                # Clear cache and collect garbage before testing
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                gc.collect()
+                
+                # Record memory before training
+                if torch.cuda.is_available():
+                    torch.cuda.reset_peak_memory_stats()
+                    mem_before = torch.cuda.memory_allocated()
+                
+                # Create and run train node
+                train_node = TrainNode(config)
+                train_node.train()
+                
+                # Measure peak memory usage
+                if torch.cuda.is_available():
+                    peak_memory = torch.cuda.max_memory_allocated()
+                    actual_usage = peak_memory - mem_before
+                else:
+                    # For CPU/MPS, estimate based on process memory
+                    process = psutil.Process()
+                    actual_usage = process.memory_info().rss
+                
+                # Calculate total memory needed for all nodes
+                total_memory_needed = actual_usage * num_nodes
+                
+                # Check if this fits in available memory (with 10% safety margin)
+                if total_memory_needed < available_memory * 0.9:
+                    print(f"Found suitable minibatch_size={search_minibatch}")
+                    print(f"Estimated memory per node: {actual_usage / (1024**3):.2f} GB")
+                    print(f"Total for {num_nodes} nodes: {total_memory_needed / (1024**3):.2f} GB")
+                    print(f"Available system memory: {available_memory / (1024**3):.2f} GB")
+                    return search_minibatch
+                else:
+                    print(f"minibatch_size={search_minibatch} would use {total_memory_needed / (1024**3):.2f} GB, reducing...")
+                    
+            except (torch.cuda.OutOfMemoryError, RuntimeError, MemoryError) as e:
+                # Handle OOM errors gracefully for CUDA, MPS, and CPU
+                if "out of memory" in str(e).lower() or isinstance(e, MemoryError):
+                    print(f"OOM with minibatch_size={search_minibatch}: {str(e)}")
+                    
+                    # Clear cache to recover
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    elif hasattr(torch, 'mps') and torch.backends.mps.is_available():
+                        # MPS doesn't have explicit cache clearing yet, but gc helps
+                        pass
+                    gc.collect()
+                else:
+                    # Re-raise if it's not a memory-related RuntimeError
+                    raise
+                
+            # Reduce minibatch size and try again
+            search_minibatch = search_minibatch // 2
+        
+        raise Exception(f'Cannot find suitable minibatch size for device {config.device}') 

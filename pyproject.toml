@@ -40,7 +40,8 @@ dependencies = [
     "black>=22.0.0",
     "flake8>=4.0.0",
     "mypy>=0.950",
-    "matplotlib>=3.5.0"
+    "matplotlib>=3.5.0",
+    "psutil>=5.8.0"
 ]
 
 [project.urls]
