@@ -93,9 +93,6 @@ def plot_validation_results_with_run_names(strategy_names, run_names):
     print("##### FINAL VALIDATION LOSS SUMMARY #####")
     print("="*50)
     
-    # Display the plot
-    plt.show()
-    
     # Sort strategies by final validation loss (best to worst)
     sorted_strategies = sorted(final_losses.items(), key=lambda x: x[1])
     
@@ -105,6 +102,9 @@ def plot_validation_results_with_run_names(strategy_names, run_names):
     
     print("="*50)
 
+    # Display the plot
+    plt.show()
+    
 
 # ── 1. Dataset ───────────────────────────────────────────────────────────────
 def get_mnist_splits(root="data", train_frac=1.0):
