@@ -104,23 +104,28 @@ def create_config(
     model: torch.nn.Module, strategy, train_node, extra_config: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """
-    Create a comprehensive wandb configuration from model, strategy, and config objects.
+    Create a comprehensive configuration from model, strategy, and train_node objects.
 
     Args:
-      modules: List of modules to include in the config. Each module admits a config() method.
+      model: The PyTorch model to extract configuration from
+      strategy: Training strategy object with __config__ method
+      train_node: Training node object with __config__ method
       extra_config: Additional configuration to include (optional)
 
     Returns:
-      dict: A complete wandb configuration dictionary
+      dict: A complete configuration dictionary suitable for any logger
     """
-    wandb_config = {}
+    config = {}
 
-    wandb_config["strategy"] = strategy.__config__()
-    wandb_config.update(train_node.__config__())
+    # Add strategy and train_node configurations if they exist
+    if strategy and hasattr(strategy, '__config__'):
+        config["strategy"] = strategy.__config__()
+    if train_node and hasattr(train_node, '__config__'):
+        config.update(train_node.__config__())
 
     # Model information
     if model:
-        wandb_config.update(
+        config.update(
             {
                 "model_name": model.__class__.__name__,
                 # "model_config": extract_config(model),
@@ -129,19 +134,19 @@ def create_config(
 
         # Try to get parameter count
         if hasattr(model, "get_num_params"):
-            wandb_config["model_parameters"] = model.get_num_params() / 1e6
+            config["model_parameters"] = model.get_num_params() / 1e6
         else:
             # Fallback to counting parameters
-            wandb_config["model_parameters"] = (
+            config["model_parameters"] = (
                 sum(p.numel() for p in model.parameters()) / 1e6
             )
 
     # Extra configuration
     if extra_config:
         for key, value in extra_config.items():
-            wandb_config[key] = extract_config(value)
+            config[key] = extract_config(value)
 
-    return wandb_config
+    return config
 
 
 def log_model_summary(model: torch.nn.Module) -> Dict[str, Any]:
