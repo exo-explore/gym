@@ -82,7 +82,7 @@ def arg_parse():
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--max_norm", type=float, default=1.0)
     parser.add_argument("--warmup_steps", type=int, default=1000)
-    parser.add_argument("--max_steps", type=int, default=30000)
+    parser.add_argument("--max_steps", type=int, default=None)
     parser.add_argument("--cosine_anneal", action="store_true")
 
     # Logging and reproducibility
@@ -277,6 +277,13 @@ def main():
             args.model_size = "small"
         elif args.dataset == "owt":
             args.model_size = "base"
+    
+    # Set default max_steps based on dataset if not specified
+    if args.max_steps is None:
+        if args.dataset == "shakespeare":
+            args.max_steps = 5000
+        elif args.dataset == "owt":
+            args.max_steps = 30000
 
     ## Example of dataset factory for OWT.
     if args.dataset == "owt" or False:
