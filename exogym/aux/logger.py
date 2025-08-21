@@ -43,9 +43,15 @@ class Logger:
             self.pbar = tqdm(total=self.max_steps, initial=self.step)
 
     def log(self, data: dict):
+        """Log arbitrary data - no-op in base logger"""
         pass
 
     def log_loss(self, loss: float, name: str):
+        """Log validation/evaluation loss - no-op in base logger"""
+        pass
+    
+    def log_info(self, value: float, name: str):
+        """Log informational metric - no-op in base logger"""
         pass
 
     def log_examples_trained(self, examples: int):
@@ -63,6 +69,14 @@ class Logger:
 
     def increment_step(self):
         self.step += 1
+    
+    def set_step(self, step: int):
+        """Set the current step - used for checkpoint resumption"""
+        self.step = step
+        if self.pbar:
+            self.pbar.n = step
+            self.pbar.last_print_n = step
+            self.pbar.refresh()
 
     def log_lr(self, lr: float):
         self.current_lr = lr
