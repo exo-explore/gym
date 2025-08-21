@@ -195,9 +195,28 @@ class Trainer:
     def find_minibatch_size(self, num_nodes: int, batch_size: int):
         import psutil
         import gc
+
+        print(f'Profiling system & training to find optimal minibatch size...')
         
-        # Get available system memory
-        available_memory = psutil.virtual_memory().available
+        # Calculate available memory based on device type
+        if torch.cuda.is_available():
+            # For CUDA, get total memory across all available GPUs
+            num_gpus = torch.cuda.device_count()
+            if self.config.devices is not None:
+                num_gpus = len(self.config.devices)
+            
+            # Get memory for a single GPU (assuming homogeneous)
+            single_gpu_memory = torch.cuda.get_device_properties(0).total_memory
+            available_memory = single_gpu_memory * num_gpus
+            memory_type = "GPU"
+            
+            print(f"Detected {num_gpus} GPU(s) with {single_gpu_memory / (1024**3):.2f} GB each")
+            print(f"Total GPU memory available: {available_memory / (1024**3):.2f} GB")
+        else:
+            # For CPU/MPS, use system memory
+            available_memory = psutil.virtual_memory().available
+            memory_type = "system"
+            print(f"Using {memory_type} memory: {available_memory / (1024**3):.2f} GB available")
         
         search_minibatch = batch_size
         config = copy.deepcopy(self.config)
@@ -239,7 +258,7 @@ class Trainer:
                     print(f"Found suitable minibatch_size={search_minibatch}")
                     print(f"Estimated memory per node: {actual_usage / (1024**3):.2f} GB")
                     print(f"Total for {num_nodes} nodes: {total_memory_needed / (1024**3):.2f} GB")
-                    print(f"Available system memory: {available_memory / (1024**3):.2f} GB")
+                    print(f"Available {memory_type} memory: {available_memory / (1024**3):.2f} GB")
                     return search_minibatch
                 else:
                     print(f"minibatch_size={search_minibatch} would use {total_memory_needed / (1024**3):.2f} GB, reducing...")
