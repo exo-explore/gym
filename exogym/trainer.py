@@ -178,11 +178,16 @@ class Trainer:
             Callable[[int, int, bool], torch.utils.data.Dataset],
         ],
         start_port: Optional[int] = None,
+        device: str = None,
+        devices: list[int] = None,
     ):
         self.model_orig = model
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.port = start_port if start_port is not None else 12355
+        self.device = device
+        self.devices = devices
+        self._minibatch_cache = {}
 
     def fit(
         self,
@@ -190,8 +195,6 @@ class Trainer:
         strategy: Strategy,
         num_nodes: int,
         max_steps: int = None,
-        device: str = None,
-        devices: list[int] = None,
         batch_size: int = 16,
         minibatch_size: int = None,
         shuffle: bool = True,
@@ -221,8 +224,8 @@ class Trainer:
             num_nodes=num_nodes,
             max_steps=max_steps,
             port=self.port,
-            device=device,
-            devices=devices,
+            device=self.device,
+            devices=self.devices,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
             shuffle=shuffle,
@@ -238,9 +241,11 @@ class Trainer:
 
         # Auto-detect minibatch_size if not provided
         if minibatch_size is None:
+            force_recalculate = kwargs.get('force_minibatch_recalculate', False)
             minibatch_size = self.find_minibatch_size(
                 num_nodes,
                 batch_size,
+                force_recalculate=force_recalculate,
             )
             self.config.minibatch_size = minibatch_size
 
@@ -269,12 +274,24 @@ class Trainer:
         final_model.load_state_dict(averaged_state_dict)
         return final_model
 
-    def find_minibatch_size(self, num_nodes: int, batch_size: int):
+    def clear_minibatch_cache(self):
+        """Clear the cached minibatch size results."""
+        self._minibatch_cache.clear()
+        print("Minibatch size cache cleared.")
+    
+    def find_minibatch_size(self, num_nodes: int, batch_size: int, force_recalculate: bool = False):
+        cache_key = (num_nodes, batch_size)
+        
+        if not force_recalculate and cache_key in self._minibatch_cache:
+            cached_size = self._minibatch_cache[cache_key]
+            print(f'Using cached minibatch_size={cached_size} for batch_size={batch_size}, num_nodes={num_nodes}')
+            return cached_size
+        
         print(f'Profiling system & training to find optimal minibatch size...')
 
         # -------- available memory & device selection ----------
         if torch.cuda.is_available():
-            num_gpus = len(self.config.devices) if getattr(self.config, "devices", None) else torch.cuda.device_count()
+            num_gpus = len(self.devices) if self.devices else torch.cuda.device_count()
             single_gpu_memory = torch.cuda.get_device_properties(0).total_memory
             available_memory = single_gpu_memory * num_gpus
             memory_type = "GPU"
@@ -292,8 +309,12 @@ class Trainer:
         config.max_steps = 3
         config.kwargs = config.kwargs.copy() if getattr(config, "kwargs", None) else {}
         config.kwargs['disable_logging'] = True
-
-        if not getattr(config, "device", None):
+        
+        # Use Trainer's device settings
+        config.device = self.device
+        config.devices = self.devices
+        
+        if not config.device:
             if torch.cuda.is_available():
                 config.device = "cuda:0"
             elif torch.backends.mps.is_available():
@@ -361,6 +382,7 @@ class Trainer:
                         print(f"Estimated memory per node (peak): {actual_usage / (1024**3):.2f} GB")
                         print(f"Total for {num_nodes} nodes: {total_memory_needed / (1024**3):.2f} GB")
                         print(f"Available {memory_type} memory: {available_memory / (1024**3):.2f} GB")
+                        self._minibatch_cache[cache_key] = search_minibatch
                         return search_minibatch
                     else:
                         print(f"minibatch_size={search_minibatch} would use {total_memory_needed / (1024**3):.2f} GB (peak), reducing...")
