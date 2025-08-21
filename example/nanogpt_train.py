@@ -87,7 +87,7 @@ def arg_parse():
 
     # Logging and reproducibility
     parser.add_argument("--seed", type=int, default=1337)
-    parser.add_argument("--wandb_project", type=str, default='rebuttal')
+    parser.add_argument("--wandb_project", type=str, default=None)
     parser.add_argument("--run_name", type=str, default=None)
     parser.add_argument("--val_size", type=int, default=256)
     parser.add_argument("--val_interval", type=int, default=100)
