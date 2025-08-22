@@ -228,7 +228,7 @@ def build_dataset_owt(start_pc=0.0, end_pc=1.0, max_workers=8):
     )
 
     dataset_id = "Skylion007/openwebtext"
-    load_config = {}
+    load_config = {"trust_remote_code": True}
 
     # Use the dataset builder to obtain the total number of records.
     builder = load_dataset_builder(dataset_id, **load_config)
@@ -244,7 +244,7 @@ def build_dataset_owt(start_pc=0.0, end_pc=1.0, max_workers=8):
     print(f"Using {used_records} records: {start_record} to {end_record}")
 
     dataset = load_dataset(
-        dataset_id, split=f"train[{start_record}:{end_record}]"
+        dataset_id, split=f"train[{start_record}:{end_record}]", **load_config
     )
 
     try:
