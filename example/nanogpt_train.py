@@ -8,6 +8,30 @@ import torch
 from functools import partial
 
 
+def get_dataset_defaults(dataset_name):
+    """Get default configuration for a specific dataset."""
+    defaults = {
+        "owt": {
+            "start_pc": 0.0,
+            "end_pc": 0.04,
+            "val_start_pc": 0.99,
+            "val_end_pc": 1.0,
+            "model_size": "base",
+            "max_steps": 30000,
+        },
+        "shakespeare": {
+            "start_pc": 0.0,
+            "end_pc": 0.9,
+            "val_start_pc": 0.9,
+            "val_end_pc": 1.0,
+            "model_size": "small",
+            "max_steps": 5000,
+        },
+    }
+    # Return defaults for the dataset, or empty dict if not defined
+    return defaults.get(dataset_name, {})
+
+
 def gen_run_name(args, strategy):
     """Generate wandb name based on strategy and arguments."""
     base_name = f"bs{args.batch_size}_lr{args.lr:.0e}"
@@ -59,10 +83,10 @@ def arg_parse():
         default="owt",
         help="which dataset to use (shakespeare, wikitext, code, owt)",
     )
-    parser.add_argument("--start_pc", type=float, default=0.0)
-    parser.add_argument("--end_pc", type=float, default=0.9)
-    parser.add_argument("--val_start_pc", type=float, default=0.9)
-    parser.add_argument("--val_end_pc", type=float, default=1.0)
+    parser.add_argument("--start_pc", type=float, default=None)
+    parser.add_argument("--end_pc", type=float, default=None)
+    parser.add_argument("--val_start_pc", type=float, default=None)
+    parser.add_argument("--val_end_pc", type=float, default=None)
     parser.add_argument("--block_size", type=int, default=1024)
 
     # Training arguments
@@ -272,19 +296,22 @@ def main():
     parser = arg_parse()
     args = parser.parse_args()
 
-    # Set default model size based on dataset if not specified
-    if args.model_size is None:
-        if args.dataset == "shakespeare":
-            args.model_size = "small"
-        elif args.dataset == "owt":
-            args.model_size = "base"
+    # Get dataset-specific defaults
+    dataset_defaults = get_dataset_defaults(args.dataset)
     
-    # Set default max_steps based on dataset if not specified
+    # Apply dataset defaults for any unset arguments
+    if args.start_pc is None:
+        args.start_pc = dataset_defaults.get("start_pc", 0.0)
+    if args.end_pc is None:
+        args.end_pc = dataset_defaults.get("end_pc", 0.9)
+    if args.val_start_pc is None:
+        args.val_start_pc = dataset_defaults.get("val_start_pc", 0.9)
+    if args.val_end_pc is None:
+        args.val_end_pc = dataset_defaults.get("val_end_pc", 1.0)
+    if args.model_size is None:
+        args.model_size = dataset_defaults.get("model_size", "small")
     if args.max_steps is None:
-        if args.dataset == "shakespeare":
-            args.max_steps = 5000
-        elif args.dataset == "owt":
-            args.max_steps = 30000
+        args.max_steps = dataset_defaults.get("max_steps", 5000)
 
     ## Example of dataset factory for OWT.
     if args.dataset == "owt" or False:
