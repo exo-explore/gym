@@ -274,6 +274,7 @@ class GPT(nn.Module):
             return logits
         else:
             logits = logits.transpose(-1, -2)
+            print(logits.shape)
             loss = self.criterion(logits, y)
 
             return loss
