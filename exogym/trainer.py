@@ -337,7 +337,6 @@ class Trainer:
         try:
             while search_minibatch > 0:
                 config.minibatch_size = search_minibatch
-                config.port -= 1
 
                 try:
                     # ---- clear caches ----
@@ -359,7 +358,33 @@ class Trainer:
 
                     # ---- run training trial ----
                     train_node = TrainNode(config)
-                    train_node.train()
+                    try:
+                        train_node.train()
+                    finally:
+                        # Clean up TrainNode resources
+                        if hasattr(train_node, 'train_dataloader'):
+                            del train_node.train_dataloader
+                        if hasattr(train_node, 'val_dataloader'):
+                            del train_node.val_dataloader
+                        if hasattr(train_node, 'train_data_iter'):
+                            del train_node.train_data_iter
+                        if hasattr(train_node, 'val_data_iter'):
+                            del train_node.val_data_iter
+                        if hasattr(train_node, 'model'):
+                            del train_node.model
+                        if hasattr(train_node, 'strategy'):
+                            del train_node.strategy
+                        del train_node
+                        
+                        # Force garbage collection
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        elif hasattr(torch, "mps") and torch.backends.mps.is_available():
+                            try:
+                                torch.mps.empty_cache()
+                            except Exception:
+                                pass
+                        gc.collect()
 
                     # ---- stop sampler & read peaks ----
                     sampler.stop()
@@ -406,5 +431,22 @@ class Trainer:
             raise Exception(f'Cannot find suitable minibatch size for device {config.device}')
 
         finally:
+            # Clean up config copies and model/strategy
+            if hasattr(config, 'model'):
+                del config.model
+            if hasattr(config, 'strategy'):
+                del config.strategy
+            del config
+            
+            # Final cleanup
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            elif hasattr(torch, "mps") and torch.backends.mps.is_available():
+                try:
+                    torch.mps.empty_cache()
+                except Exception:
+                    pass
+            gc.collect()
+            
             if need_cleanup:
                 dist.destroy_process_group() 
