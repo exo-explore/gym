@@ -63,51 +63,11 @@ pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://
 
 ### Example Scripts
 
-<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 30px;">
-  <div style="flex: 1; min-width: 45%; display: flex; flex-direction: column; justify-content: center;">
-    <strong>MNIST Comparison</strong>
-    <br>
-    Compare DDP, DiLoCo, SPARTA on MNIST dataset. Runs in <2 mins on a M4 Mac Mini.
-    <br><br>
-    <code>python example/mnist.py</code>
-  </div>
-  <div style="flex: 1; min-width: 45%;">
-    <img src="docs/mnist_compare.png" alt="MNIST Training Comparison" width="100%">
-    <!-- <br> -->
-    <!-- <i>Caption space for MNIST comparison results</i> -->
-  </div>
-</div>
-
-<div style="display: flex; flex-wrap: wrap; gap: 20px;">
-  <div style="flex: 1; min-width: 45%; display: flex; flex-direction: column; justify-content: center;">
-    <strong>NanoGPT OpenWebText</strong>
-    <br>
-    Train a NanoGPT-style transformer on the OpenWebText dataset.
-    <br><br>
-    <code>python example/nanogpt_train.py --dataset owt --strategy diloco</code>
-  </div>
-  <div style="flex: 1; min-width: 45%;">
-    <img src="docs/OWT DiLoCo N=4.png" alt="Shakespeare Training Results" width="100%">
-    <!-- <br>
-    <i>Caption space for Shakespeare training results</i> -->
-  </div>
-</div>
-
-<div style="display: flex; flex-wrap: wrap; gap: 20px;">
-  <div style="flex: 1; min-width: 45%; display: flex; flex-direction: column; justify-content: center;">
-    <strong>Shakespeare DiLoCo Scaling K</strong>
-    <br>
-    How does DiLoCo compare for different device count (K)? This script compares DiLoCo for different device counts, normalized by FLOPs.
-    Each training run takes 
-    <br><br>
-    <code>python example/diloco_scaling.py --dataset shakespeare</code>
-  </div>
-  <div style="flex: 1; min-width: 45%;">
-    <img src="docs/diloco-batchsize.png" alt="Shakespeare Training Results" width="100%">
-    <!-- <br>
-    <i>Caption space for Shakespeare training results</i> -->
-  </div>
-</div>
+| Example | Result |
+| ------- | ------ |
+| **MNIST Comparison** <br><br> Compare DDP, DiLoCo, SPARTA on MNIST dataset. Runs in <2 mins on a M4 Mac Mini. <br><br> ```bash<br>python example/mnist.py<br>``` | <img src="docs/mnist_compare.png" alt="MNIST Training Comparison" width="100%"> |
+| **NanoGPT OpenWebText** <br><br> Train a NanoGPT-style transformer on the OpenWebText dataset. <br><br> ```bash<br>python example/nanogpt_train.py --dataset owt --strategy diloco<br>``` | <img src="docs/OWT%20DiLoCo%20N=4.png" alt="OWT DiLoCo N=4" width="100%"> |
+| **Shakespeare DiLoCo Scaling K** <br><br> How does DiLoCo compare for different device count (K)? This script compares DiLoCo for different device counts, normalized by FLOPs. <br><br> ```bash<br>python example/diloco_scaling.py --dataset shakespeare<br>``` | <img src="docs/diloco-batchsize.png" alt="Shakespeare Training Results" width="100%"> |
 
 ### Custom Training
 
