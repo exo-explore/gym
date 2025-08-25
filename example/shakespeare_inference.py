@@ -78,27 +78,52 @@ def inference(model_path, prompt, num_tokens=100, temperature=0.8, top_k=40, dev
     print(f"Generating {num_tokens} tokens...")
     print("-" * 50)
     
-    # Generate tokens
+    # Print the prompt to start the stream
+    print(prompt, end="", flush=True)
+    
+    # Generate tokens one by one and stream them
+    generated_text = prompt
+    current_idx = idx.clone()
+    
     with torch.no_grad():
-        generated_idx = model.generate(
-            idx, 
-            max_new_tokens=num_tokens,
-            temperature=temperature,
-            top_k=top_k
-        )
-    
-    # Decode the generated tokens
-    generated_tokens = generated_idx[0].tolist()
-    generated_text = ""
-    
-    for token_id in generated_tokens:
-        if token_id < len(idx_to_char):
-            char = idx_to_char[token_id]
-            if char != "<EOS>":
+        for _ in range(num_tokens):
+            # Get logits for the current sequence
+            logits = model(current_idx, inference=True)
+            
+            # Get logits for the last token
+            logits = logits[:, -1, :]  # (B, vocab_size)
+            
+            # Apply temperature
+            logits = logits / temperature
+            
+            # Apply top-k filtering
+            if top_k is not None:
+                values, indices = torch.topk(logits, min(top_k, logits.size(-1)))
+                logits[logits < values[:, [-1]]] = -float('inf')
+            
+            # Convert to probabilities
+            probs = torch.nn.functional.softmax(logits, dim=-1)
+            
+            # Sample from the distribution
+            next_token = torch.multinomial(probs, num_samples=1)
+            
+            # Decode and print the new token
+            token_id = next_token.item()
+            if token_id < len(idx_to_char):
+                char = idx_to_char[token_id]
+                if char == "<EOS>":
+                    break
+                print(char, end="", flush=True)
                 generated_text += char
+            
+            # Append the new token to current sequence
+            current_idx = torch.cat([current_idx, next_token], dim=1)
+            
+            # Keep only the last block_size tokens to avoid memory issues
+            if current_idx.size(1) > config.block_size:
+                current_idx = current_idx[:, -config.block_size:]
     
-    print(generated_text)
-    print("-" * 50)
+    print("\n" + "-" * 50)
     
     return generated_text
 
