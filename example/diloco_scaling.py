@@ -140,7 +140,7 @@ def main():
                 val_size=512,
                 val_interval=128,
                 wandb_project="DiLoCo-Scaling",
-                run_name=f"diloco-K{K}-batchsize{local_batch_size}",
+                run_name=f"diloco-K{K}-batchsize{local_batch_size * SEQ_LEN}",
                 log_x_axis="examples",
                 kwargs={'dataset_name':dataset},
             )
