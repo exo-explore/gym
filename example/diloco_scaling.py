@@ -86,11 +86,13 @@ def main():
         if args.only_run is not None and run_index != args.only_run:
             run_index += 1
             continue
+
+        lr = args.lr if K > 1 else args.lr * 0.6
             
         if K == 0:
             # K=0 corresponds to SimpleReduceStrategy
             strategy = SimpleReduceStrategy(
-                optim_spec=OptimSpec(torch.optim.AdamW, lr=args.lr),
+                optim_spec=OptimSpec(torch.optim.AdamW, lr=lr),
                 lr_scheduler="lambda_cosine",
                 lr_scheduler_kwargs={
                     "warmup_steps": WARMUP_STEPS,
@@ -117,7 +119,7 @@ def main():
         else:
             # K > 0 corresponds to DiLoCoStrategy with K nodes
             strategy = DiLoCoStrategy(
-                optim_spec=OptimSpec(torch.optim.AdamW, lr=args.lr),
+                optim_spec=OptimSpec(torch.optim.AdamW, lr=lr),
                 lr_scheduler="lambda_cosine",
                 lr_scheduler_kwargs={
                     "warmup_steps": WARMUP_STEPS,
