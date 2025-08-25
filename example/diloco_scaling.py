@@ -131,16 +131,16 @@ def main():
 
             trainer.fit(
                 num_epochs=1,
-                max_steps=TOTAL_TOKENS // GLOBAL_BATCH_SIZE // K,
+                max_steps=TOTAL_TOKENS // GLOBAL_BATCH_SIZE,
                 strategy=strategy,
                 num_nodes=K,
                 device=device,
                 batch_size=local_batch_size,
                 shuffle=True,
                 val_size=512,
-                val_interval=128 // K,
+                val_interval=128,
                 wandb_project="DiLoCo-Scaling",
-                run_name=f"diloco-K{K}-batchsize{GLOBAL_BATCH_SIZE}",
+                run_name=f"diloco-K{K}-batchsize{local_batch_size}",
                 log_x_axis="examples",
                 kwargs={'dataset_name':dataset},
             )
