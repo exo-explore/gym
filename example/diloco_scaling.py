@@ -45,30 +45,6 @@ def main():
 
     device = get_device()
 
-    # Create model
-    if dataset == "shakespeare":
-        gpt_config = GPTConfig.gpt2_small()
-        gpt_config.dropout = 0.2
-        GLOBAL_BATCH_SIZE = SHAKESPEARE_GLOBAL_BATCH_SIZE
-    elif dataset == "owt" and device == 'mps':
-        gpt_config = GPTConfig.gpt2_sbase()
-        GLOBAL_BATCH_SIZE = OWT_GLOBAL_BATCH_SIZE
-    elif dataset == "owt" and device == 'cuda':
-        gpt_config = GPTConfig.gpt2_base()
-        GLOBAL_BATCH_SIZE = OWT_GLOBAL_BATCH_SIZE
-    else:
-        raise ValueError(f"Invalid dataset: {dataset} on device: {device}")
-
-    gpt_config.vocab_size = vocab_size
-    model = GPT(gpt_config)
-    trainer = Trainer(
-        model,
-        train_dataset,
-        val_dataset,
-        start_port=args.port + args.only_run if args.only_run else 0,
-    )
-
-
     K_list = [0, 1, 2, 4, 8]  # K=0 now represents SimpleReduceStrategy
 
     # Calculate total number of training runs
@@ -86,6 +62,29 @@ def main():
         if args.only_run is not None and run_index != args.only_run:
             run_index += 1
             continue
+
+        # Create model with dropout based on K value
+        if dataset == "shakespeare":
+            gpt_config = GPTConfig.gpt2_small()
+            gpt_config.dropout = 0.4 if K in [0, 1] else 0.2
+            GLOBAL_BATCH_SIZE = SHAKESPEARE_GLOBAL_BATCH_SIZE
+        elif dataset == "owt" and device == 'mps':
+            gpt_config = GPTConfig.gpt2_sbase()
+            GLOBAL_BATCH_SIZE = OWT_GLOBAL_BATCH_SIZE
+        elif dataset == "owt" and device == 'cuda':
+            gpt_config = GPTConfig.gpt2_base()
+            GLOBAL_BATCH_SIZE = OWT_GLOBAL_BATCH_SIZE
+        else:
+            raise ValueError(f"Invalid dataset: {dataset} on device: {device}")
+
+        gpt_config.vocab_size = vocab_size
+        model = GPT(gpt_config)
+        trainer = Trainer(
+            model,
+            train_dataset,
+            val_dataset,
+            start_port=args.port + run_index,
+        )
 
         lr = args.lr if K > 1 else args.lr * 0.6
             
