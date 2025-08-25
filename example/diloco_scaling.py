@@ -66,7 +66,7 @@ def main():
         # Create model with dropout based on K value
         if dataset == "shakespeare":
             gpt_config = GPTConfig.gpt2_small()
-            gpt_config.dropout = 0.4 if K in [0, 1] else 0.2
+            gpt_config.dropout = 0.5 if K in [0, 1] else 0.2
             GLOBAL_BATCH_SIZE = SHAKESPEARE_GLOBAL_BATCH_SIZE
         elif dataset == "owt" and device == 'mps':
             gpt_config = GPTConfig.gpt2_sbase()
@@ -77,6 +77,8 @@ def main():
         else:
             raise ValueError(f"Invalid dataset: {dataset} on device: {device}")
 
+        warmup_steps = WARMUP_STEPS if K > 1 else WARMUP_STEPS * 2
+
         gpt_config.vocab_size = vocab_size
         model = GPT(gpt_config)
         trainer = Trainer(
@@ -86,7 +88,7 @@ def main():
             start_port=args.port + run_index,
         )
 
-        lr = args.lr if K > 1 else args.lr * 0.6
+        lr = args.lr if K > 1 else args.lr * 0.5
             
         if K == 0:
             # K=0 corresponds to SimpleReduceStrategy
@@ -94,7 +96,7 @@ def main():
                 optim_spec=OptimSpec(torch.optim.AdamW, lr=lr),
                 lr_scheduler="lambda_cosine",
                 lr_scheduler_kwargs={
-                    "warmup_steps": WARMUP_STEPS,
+                    "warmup_steps": warmup_steps,
                     "cosine_anneal": True,
                 },
                 max_norm=1.0,
@@ -121,7 +123,7 @@ def main():
                 optim_spec=OptimSpec(torch.optim.AdamW, lr=lr),
                 lr_scheduler="lambda_cosine",
                 lr_scheduler_kwargs={
-                    "warmup_steps": WARMUP_STEPS,
+                    "warmup_steps": warmup_steps,
                     "cosine_anneal": True,
                 },
                 max_norm=1.0,
