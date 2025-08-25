@@ -63,18 +63,51 @@ pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://
 
 ### Example Scripts
 
-MNIST comparison of DDP, DiLoCo, and SPARTA:
+<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 30px;">
+  <div style="flex: 1; min-width: 45%; display: flex; flex-direction: column; justify-content: center;">
+    <strong>MNIST Comparison</strong>
+    <br>
+    Compare DDP, DiLoCo, SPARTA on MNIST dataset. Runs in <2 mins on a M4 Mac Mini.
+    <br><br>
+    <code>python example/mnist.py</code>
+  </div>
+  <div style="flex: 1; min-width: 45%;">
+    <img src="docs/mnist_compare.png" alt="MNIST Training Comparison" width="100%">
+    <!-- <br> -->
+    <!-- <i>Caption space for MNIST comparison results</i> -->
+  </div>
+</div>
 
-```bash
-python example/mnist.py
-```
+<div style="display: flex; flex-wrap: wrap; gap: 20px;">
+  <div style="flex: 1; min-width: 45%; display: flex; flex-direction: column; justify-content: center;">
+    <strong>NanoGPT OpenWebText</strong>
+    <br>
+    Train a NanoGPT-style transformer on the OpenWebText dataset.
+    <br><br>
+    <code>python example/nanogpt_train.py --dataset owt --strategy diloco</code>
+  </div>
+  <div style="flex: 1; min-width: 45%;">
+    <img src="docs/OWT DiLoCo N=4.png" alt="Shakespeare Training Results" width="100%">
+    <!-- <br>
+    <i>Caption space for Shakespeare training results</i> -->
+  </div>
+</div>
 
-NanoGPT Shakespeare DiLoCo:
-
-```bash
-python example/nanogpt_train.py --dataset shakespeare --strategy diloco
-```
-
+<div style="display: flex; flex-wrap: wrap; gap: 20px;">
+  <div style="flex: 1; min-width: 45%; display: flex; flex-direction: column; justify-content: center;">
+    <strong>Shakespeare DiLoCo Scaling K</strong>
+    <br>
+    How does DiLoCo compare for different device count (K)? This script compares DiLoCo for different device counts, normalized by FLOPs.
+    Each training run takes 
+    <br><br>
+    <code>python example/diloco_scaling.py --dataset shakespeare</code>
+  </div>
+  <div style="flex: 1; min-width: 45%;">
+    <img src="docs/diloco-batchsize.png" alt="Shakespeare Training Results" width="100%">
+    <!-- <br>
+    <i>Caption space for Shakespeare training results</i> -->
+  </div>
+</div>
 
 ### Custom Training
 
@@ -141,3 +174,19 @@ class QuantizationStrategy(Strategy):
 ## Technical Details
 
 For further details on how EXO Gym works under-the-hood, please see [docs/](docs/README.md).
+
+## Citation
+
+If you use EXO Gym in your research, please cite:
+
+```bibtex
+@software{exogym2025,
+  title={EXO Gym: Simulate distributed training on any hardware configuration, at any scale},
+  author={Matt Beton, Mohamed Baioumy, Matt Reed, Seth Howes, Alex Cheema},
+  year={2025},
+  url={https://github.com/exo-explore/gym}
+}
+```
+
+
+
