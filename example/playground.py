@@ -8,7 +8,6 @@ from exogym.aux.utils import get_device
 from nanogpt import GPT, GPTConfig, get_dataset
 
 NUM_NODES = 4
-# NUM_NODES = 2
 
 ### PLAYGROUND
 ### This is a minimal configuration for training a nanogpt model with a given strategy.

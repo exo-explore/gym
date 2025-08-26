@@ -2,7 +2,7 @@
 
 ## Codebase Structure
 
-- `Trainer`: Builds simulation environment. `Trainer` will spawn multiple `TrainNode` instances, connect them together, and initiates the training run.
+- `Trainer`: Builds simulation environment. `Trainer` will spawn multiple `TrainNode` instances using PyTorch Distributed. The local instances are connected together with `_build_connection`, and `TrainNode.train()` is executed on each rank.
 - `TrainNode`: A single node (rank) running its own training loop. At each train step, instead of calling `optim.step()`, it calls `strategy.step()`.
 - `Strategy`: Abstract class for an optimization strategy, which both defines **how the nodes communicate** with each other and **how model weights are updated**. Typically, a gradient strategy will include an optimizer as well as a communication step. Sometimes (eg. DeMo), the optimizer step is comingled with the communication.
 

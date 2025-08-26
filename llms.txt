@@ -1,0 +1,415 @@
+EXO Gym — llms.txt
+====================
+
+Purpose
+-------
+EXO Gym lets you **simulate distributed training** of deep learning models on a single machine (CPU, CUDA, or Apple MPS) with multiple *virtual* nodes. You can prototype and benchmark ideas like AllReduce/DDP, FedAvg, DiLoCo, SPARTA, or your own research algorithm **without deploying real clusters or Kubernetes**.
+
+This file is a practical, implementation‑level guide for LLMs (and humans) to read, write, and modify EXO Gym codebases.
+
+---
+
+Mental Model
+------------
+**One process = one node (rank).** `Trainer.fit(...)` forks `num_nodes` subprocesses with `torch.multiprocessing.spawn`. Each child process:
+
+1. Initializes `torch.distributed` (localhost‑only by default).
+2. Receives a *copy* of the model and a *view* of the dataset (via sampler or a user‑supplied factory).
+3. Runs a training loop where **the model’s `forward(batch)` must return a *scalar loss***.
+4. Uses a **Strategy** to determine *how gradients/parameters are synchronized* and *how optimization happens*.
+
+At the end of training, the **parent process** averages child state_dicts and returns a fully‑loaded model.
+
+Key Abstractions (What to extend and how they connect)
+------------------------------------------------------
+
+### 1) `Trainer` (exogym/trainer.py)
+- **Role:** Spawns ranks, wires distributed backend, and coordinates the run.
+- **Entry point:** `Trainer.fit(...)`
+- **Spawning:** Uses `mp.spawn(_worker, nprocs=num_nodes, ...)` where `_worker`:
+  - Builds the distributed process group (`_build_connection`).
+  - Deep‑copies model/strategy, calls `strategy._init_node(model, rank, num_nodes)`.
+  - Constructs a `TrainNode` and runs `train_node.train()`.
+- **Device selection:**
+  - If CUDA available: assigns `cuda:{devices[rank % len(devices)]}`.
+  - Otherwise: MPS (Apple) or CPU.
+  - Backend: `nccl` when each rank maps 1:1 to GPUs; otherwise `gloo`.
+- **Return value:** Parent collects per‑rank `state_dict`s and averages float tensors via `_average_model_states(...)`.
+
+**Gotcha (narrow case):** If `num_nodes > #gpus`, CUDA can still be used (round‑robin), but backend falls back to `gloo` which is slower than `nccl`.
+
+### 2) `TrainNode` (exogym/train_node.py)
+- **Role:** Per‑rank training loop + logging/eval/checkpoint hooks.
+- **Data:**
+  - If `train_dataset`/`val_dataset` is a **Dataset object**, rank uses `DistributedSampler` to shard examples.
+  - If they are a **factory function**, EXO Gym calls `dataset_factory(rank, num_nodes, train_dataset: bool)` inside each process (you fully control sharding).
+- **Batches:** Two levels of batch sizing:
+  - `batch_size` = *effective* local batch per step.
+  - `minibatch_size` = how large each **micro‑batch** is. EXO Gym performs **gradient accumulation**: `accum_steps = batch_size // minibatch_size`.
+- **Train step:**
+  1. Zero grads via `strategy.zero_grad()`.
+  2. Loop `accum_steps`: `loss = model(minibatch)` → `loss.backward()`.
+  3. Divide grads by `accum_steps`.
+  4. Call `strategy.step()` → (optimizer, communication, scheduler).
+- **Eval step (`_evaluate`)**:
+  - Rank 0 logs **local** loss.
+  - Rank 1 computes loss on the **averaged model** (parameters reduced then averaged) and broadcasts it so rank 0 can log **global** loss.
+- **Logging:** CSV or Weights & Biases (W&B).
+- **Checkpoints:** (per‑rank) saved under `save_dir/<project>/<run_name>/<rank>/checkpoint.pt`.
+- **Correlation (optional):** If `correlation_interval` set, rank 0 computes average parameter correlation across nodes (saved/loaded from a temp dir).
+
+### 3) `Strategy` (exogym/strategy/strategy.py)
+- **Role:** Defines *optimization* + *communication* semantics.
+- **Responsibilities:**
+  - Owns the optimizer (built from `OptimSpec` or string alias).
+  - Implements `step()` which may: reduce gradients, clip norms, average/broadcast parameters, call `optim.step()`, and advance the scheduler.
+  - Optional LR scheduler `"lambda_cosine"` with warmup and cosine decay (set via `lr_scheduler="lambda_cosine", lr_scheduler_kwargs={...}`).
+- **Extensibility:** Create a subclass of `Strategy` (or see next item for modular comms).
+
+### 4) `CommunicateOptimizeStrategy` & `CommunicationModule`
+- **`CommunicateOptimizeStrategy`**: A Strategy that interleaves **local optimization** with a chain of **communication modules** (e.g., sparse sync + master step).
+- **`CommunicationModule`**: Minimal interface:
+  ```python
+  class CommunicationModule(ABC):
+      def _init_node(self, model, rank, num_nodes): ...
+      def communicate(self, model, rank, num_nodes, local_step): ...
+  ```
+- Compose multiple modules to create hybrid algorithms (e.g., SPARTA + DiLoCo).
+
+### 5) `OptimSpec` (exogym/strategy/optim.py)
+- Declarative optimizer spec:
+  ```python
+  OptimSpec(torch.optim.AdamW, lr=3e-4, weight_decay=1e-4)
+  ```
+- Use string aliases too: `"adam"`, `"adamw"`, `"sgd"`, etc. (`OptimSpec.from_string(...)`).
+
+### 6) `communicate.py` (device‑safe collectives)
+- Thin wrappers over `torch.distributed` collectives with **MPS compatibility**:
+  - `broadcast(tensor, src=0)`
+  - `all_reduce(tensor, op=dist.ReduceOp.SUM)`
+  - `all_gather(tensor_list, tensor)`
+- On MPS they copy via CPU under the hood to avoid backend limitations.
+
+Built‑in Strategies (what they do & key knobs)
+----------------------------------------------
+
+> You can inspect real implementations under `exogym/strategy/`.
+
+### SimpleReduceStrategy (AllReduce/DDP‑equivalent)
+- **Where:** `strategy/strategy.py`
+- **What:** Averages **gradients** via `all_reduce`, then `optim.step()` (optionally clip norms), then scheduler.
+- **Knobs:** `optim_spec`, `max_norm`, optional LR scheduler.
+
+### FedAvgStrategy (Federated Averaging)
+- **Where:** `strategy/federated_averaging.py`
+- **What:** Averages **parameters** across:
+  - All nodes, or
+  - Random **islands** (subsets) each round.
+- **Knobs:** `H` (average every H steps), `island_size`.
+- **Implementation details:**
+  - If `island_size == num_nodes`, uses `all_reduce` for efficiency.
+  - Else uses `all_gather` and averages only peers in your island.
+
+> **Note:** Current constructor signature uses `inner_optim` but `CommunicateOptimizeStrategy` expects `optim_spec`. Until unified, prefer:
+> ```python
+> FedAvgStrategy(optim_spec=OptimSpec(torch.optim.AdamW, lr=...),
+>                H=..., island_size=..., ...)
+> ```
+
+### SPARTAStrategy (Sparse parameter averaging)
+- **Where:** `strategy/sparta.py`
+- **What:** At each step, pick a parameter **mask** (e.g., random Bernoulli with prob `p_sparta`) and only communicate/update those positions.
+- **Knobs:** `p_sparta` controls sparsity; you can swap `IndexSelector`:
+  - `RandomIndexSelector(p)` — default.
+  - `ShuffledSequentialIndexSelector(p)` — cycles a shuffled partition.
+  - `PartitionedIndexSelector(p)` — fixed partitions per parameter.
+
+### DiLoCoStrategy (Master‑worker outer loop)
+- **Where:** `strategy/diloco.py`
+- **What:** Every `H` steps:
+  1. Average worker models.
+  2. On **rank 0**, run a **master optimizer step** (outer optimizer) against the diff to workers.
+  3. Broadcast master weights to all workers.
+- **Knobs:** `optim_spec` (inner optimizer), `outer_optim_spec` (e.g., SGD with momentum), `H`.
+
+### SPARTADiLoCoStrategy (Hybrid)
+- **Where:** `strategy/sparta_diloco.py`
+- **What:** Combines SPARTA (sparse param comm) **every `sparta_interval` steps** with DiLoCo master steps **every `H` steps**.
+
+### DeMoStrategy (Decoupled Momentum Optimization)
+- **Where:** `strategy/demo.py` (+ `strategy/demo_impl/demo.py`)
+- **What:** Implements the DeMo optimizer with **compressed communication** (DCT + top‑k) via `all_gather`, then an SGD‑like step on **signs** of aggregated updates.
+- **Knobs:** `compression_topk`, `compression_chunk`, `compression_decay`, `weight_decay` (DeMo‑specific).
+
+Data & Models (how to plug your own)
+------------------------------------
+
+### Model contract
+Your model **must** have `forward(batch) -> scalar_loss` (not logits). This keeps the training loop **data‑format‑agnostic**. See:
+- MNIST CNN wrapper (`example/mnist.py`: `ModelWrapper`).
+- NanoGPT (`example/nanogpt/nanogpt.py`): returns loss given `(idx, y)`, and has a special `inference=True` path for generation.
+
+If you need custom metrics, compute and log them inside your model or Strategy and send to the logger via callbacks or `logger.log(...)` (W&B or CSV).
+
+### Datasets — two patterns
+1) **Single Dataset object** (simplest):  
+   Provide a `torch.utils.data.Dataset` instance for train and val. EXO Gym will shard via `DistributedSampler` per rank.
+   ```python
+   trainer = Trainer(model, train_dataset, val_dataset)
+   trainer.fit(..., num_nodes=K, ...)
+   ```
+   **Heads‑up:** If your dataset loads all data into memory, each rank gets its **own copy** — watch memory.
+
+2) **Factory function** (full control):  
+   Pass a factory with signature:
+   ```python
+   def dataset_factory(rank: int, num_nodes: int, train_dataset: bool) -> Dataset
+   ```
+   EXO Gym calls this **inside each rank**, so you can do precise sharding (by index range, files, remote shards, etc.).  
+   Examples:
+   - Language modeling on OpenWebText via chunking (`example/nanogpt_train.py` + `example/nanogpt/dataset.py`).
+   - ImageNet‑100 with HuggingFace Datasets + torchvision transforms (`example/image_train.py`).
+
+### DataLoader knobs
+Pass `dataloader_kwargs` through `Trainer.fit(...)` (e.g., `num_workers`, `pin_memory`, `prefetch_factor`, etc.). When using a Dataset object, `DistributedSampler` is set automatically; with factories, sharding is your job.
+
+Training Control Surface (what you can set)
+-------------------------------------------
+`Trainer.fit(...)` parameters (key ones):
+
+- `num_epochs` (int) and/or `max_steps` (int): either/both; fit stops when `local_step >= max_steps` (computed if not set).
+- `strategy` (Strategy): one of the built‑ins or your subclass.
+- `num_nodes` (int): number of virtual ranks.
+- `device` (str): `""`/`None` for auto; or `"cuda"`, `"cpu"`, `"mps"`. With CUDA, pass `devices=[0,1,...]` to control GPU mapping.
+- **Batching:** `batch_size` (effective per rank), `minibatch_size` (micro‑batch); if `minibatch_size` is `None`, EXO Gym can **auto‑probe** a safe size (see below).
+- `shuffle` (bool): training data shuffle (Sampler handles it in Dataset mode).
+- Validation: `val_size`, `val_interval` (in steps).
+- Mixed precision: `autocast` (bool, uses bfloat16).
+- Checkpointing: `checkpoint_interval` (steps); saved per rank as described earlier.
+- Correlation: `correlation_interval` (steps) → logs average parameter correlation across nodes (requires W&B for logging).
+- Logging: `wandb_project`, `run_name`, `log_x_axis` (`"step"` or `"examples"`). If `wandb_project` is `None`, falls back to **CSV** logs under `./logs/<run_name>/`.
+
+**Automatic micro‑batch sizing**  
+If `minibatch_size` is `None`, EXO Gym runs a brief **1‑rank profiling run** (3 steps) to detect a safe micro‑batch that fits memory (GPU/MPS/CPU). Results are cached **per `(num_nodes, batch_size)`** to avoid re‑profiling. Override with `force_minibatch_recalculate=True` in `Trainer.fit(..., kwargs={...})`.
+
+Evaluation & Logging (what gets recorded)
+-----------------------------------------
+- **Training CSV:** `logs/<run_name>/train.csv` with `step`, `examples_trained`, `train_loss`, `train_perplexity`, `lr` (if available).
+- **Validation CSV:** `logs/<run_name>/validation.csv` with `step`, `local_loss`, `local_perplexity`, `global_loss`, `global_perplexity`.
+- **W&B:** Same metrics; `x_axis` can be `step` or `examples`.
+
+How to Implement a New Strategy
+-------------------------------
+Choose **one of two** extension paths, depending on whether you want modular comms or not.
+
+### A) Lightweight: subclass `Strategy`
+Best when you only need a single, self‑contained behavior.
+
+Skeleton:
+```python
+from exogym.strategy.strategy import Strategy
+from exogym.strategy.optim import OptimSpec, ensure_optim_spec
+from exogym.strategy.communicate import all_reduce, broadcast, all_gather
+import torch
+
+class MyStrategy(Strategy):
+    def __init__(self, optim_spec=None, max_norm=None, **kwargs):
+        super().__init__(**kwargs)
+        self.optim_spec = ensure_optim_spec(optim_spec, OptimSpec(torch.optim.AdamW))
+        self.max_norm = max_norm
+
+    def _init_node(self, model, rank, num_nodes):
+        super()._init_node(model, rank, num_nodes)
+        self.optim = self.optim_spec.build(model)
+        self._setup_scheduler()
+
+    def step(self):
+        # Example: average grads (like DDP) then clip and step
+        for p in self.model.parameters():
+            if p.grad is not None:
+                all_reduce(p.grad)           # safe on MPS/CPU via wrapper
+                p.grad.div_(self.num_nodes)
+
+        if self.max_norm:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_norm)
+
+        self.optim.step()
+        super().step()   # handles scheduler & step count
+```
+
+### B) Composable: `CommunicateOptimizeStrategy` + `CommunicationModule`s
+Best when you want **multiple** communication phases (e.g., sparse sync + master step).
+
+Skeleton:
+```python
+from exogym.strategy.communicate_optimize_strategy import CommunicateOptimizeStrategy, CommunicationModule
+from exogym.strategy.optim import OptimSpec, ensure_optim_spec
+from exogym.strategy.communicate import all_reduce, broadcast
+import torch
+
+class MyComm(CommunicationModule):
+    def _init_node(self, model, rank, num_nodes):
+        pass
+
+    def communicate(self, model, rank, num_nodes, local_step):
+        # e.g., every 10 steps, average parameters
+        if num_nodes > 1 and local_step % 10 == 0 and local_step > 0:
+            for p in model.parameters():
+                all_reduce(p.data)
+                p.data.div_(num_nodes)
+
+class MyComposableStrategy(CommunicateOptimizeStrategy):
+    def __init__(self, optim_spec=None, **kwargs):
+        comms = [MyComm()]
+        super().__init__(communication_modules=comms,
+                         optim_spec=ensure_optim_spec(optim_spec, OptimSpec(torch.optim.AdamW)),
+                         **kwargs)
+```
+
+**Schedulers & LR logging**  
+If you set `lr_scheduler="lambda_cosine"` and pass `lr_scheduler_kwargs` (e.g., `{"warmup_steps": 1000, "cosine_anneal": True}`), EXO Gym will call your scheduler each `step()` and expose LR via callbacks to loggers.
+
+**Collectives**  
+Always use `exogym.strategy.communicate.*` wrappers; they make `torch.distributed` safe on MPS by CPU‑hopping automatically.
+
+Frequently Used Recipes
+-----------------------
+
+### Train MNIST with multiple strategies
+```bash
+python example/mnist.py               # compares DDP (SimpleReduce), DiLoCo, SPARTA
+```
+
+### NanoGPT on Shakespeare or OWT
+```bash
+# Shakespeare, DiLoCo
+python example/nanogpt_train.py --dataset shakespeare --strategy diloco --num_nodes 4
+
+# OpenWebText, baseline AllReduce
+python example/nanogpt_train.py --dataset owt --strategy ddp --num_nodes 4 \
+  --batch_size 16 --lr 3e-4 --val_interval 100
+```
+
+### ImageNet‑100 with ConvNeXt V2 (timm)
+```bash
+python example/image_train.py --strategy sparta --num_nodes 8 --p_sparta 0.01 \
+  --batch_size 64 --lr 1e-3
+```
+
+### Sweep scripts (multi‑process across GPUs)
+```bash
+# Learning‑rate sweep
+python example/grid_lr.py --lrs 3e-4 1e-3 3e-3 --gpus 0 1 --strategy ddp
+
+# Batch‑size sweep
+python example/grid_batchsize.py --batch_sizes 8 16 32 --lr 3e-4 --gpus 0 1
+```
+
+### Auto‑choose micro‑batch
+```python
+trainer.fit(..., batch_size=64, minibatch_size=None)  # runs a 3‑step probe
+```
+
+Internals (for deeper modifications)
+------------------------------------
+- **Distributed setup (`_build_connection`)** sets `MASTER_ADDR=localhost`, `MASTER_PORT=<port>` and picks backend/device. To go multi‑host, you’d need to replace this function (externalize address/ports and pass `init_method`/`env` appropriately).
+- **Initial parameter sync:** On multi‑rank runs, rank 0 **broadcasts** parameters to all ranks to guarantee identical starts.
+- **Final model return:** Parent averages *float tensors only* (non‑float tensors like embedding indices are skipped).
+
+Known Pitfalls & Notes
+----------------------
+1. **FedAvgStrategy optimizer arg name:** The constructor currently takes `inner_optim` but `CommunicateOptimizeStrategy` expects `optim_spec`. Use `optim_spec=...` (or rely on default AdamW at default LR if omitted). Fix upstream to unify naming.
+2. **Example typo:** In `example/playground.py`, for OWT + MPS the code calls `GPTConfig.gpt_sbase()` but the class provides `gpt2_sbase()`. Use `GPTConfig.gpt2_sbase()`.
+3. **MPS performance:** Collective ops on MPS hop through CPU for safety, which is slower than CUDA. This is expected for simulation on Macs.
+4. **Large in‑memory Datasets:** Passing a monolithic `Dataset` object duplicates memory per rank. Prefer a **factory** that shards by rank to avoid duplication.
+
+Quick Reference (cheat sheet)
+-----------------------------
+
+**Trainer.fit params (selection):**
+- `num_epochs`, `max_steps`
+- `strategy`: e.g., `SimpleReduceStrategy(...)`, `FedAvgStrategy(...)`, `SPARTAStrategy(...)`, `DiLoCoStrategy(...)`, `SPARTADiLoCoStrategy(...)`, `DeMoStrategy(...)`
+- `num_nodes`, `device`, `devices=[...]`
+- `batch_size`, `minibatch_size` (or `None` to auto‑probe)
+- `shuffle`, `val_size`, `val_interval`, `autocast`
+- `checkpoint_interval`, `correlation_interval`
+- `save_dir`, `dataloader_kwargs={...}`
+- `wandb_project`, `run_name`, `log_x_axis` in `{"step", "examples"}`
+
+**Strategy knobs (selection):**
+- `optim_spec=OptimSpec(torch.optim.AdamW, lr=...)`
+- `lr_scheduler="lambda_cosine"`, `lr_scheduler_kwargs={"warmup_steps": ..., "cosine_anneal": True}`
+- `max_norm=<float>`
+
+**Communication primitives:**
+- `broadcast(tensor, src=0)`
+- `all_reduce(tensor, op=dist.ReduceOp.SUM)`
+- `all_gather(tensor_list, tensor)`
+
+Add Your Own Data/Model Quickly
+-------------------------------
+```python
+from exogym import Trainer
+from exogym.strategy.strategy import SimpleReduceStrategy
+from exogym.strategy.optim import OptimSpec
+
+class MyModel(torch.nn.Module):
+    def __init__(self): ...
+    def forward(self, batch):            # must return scalar loss
+        x, y = batch
+        logits = self.backbone(x)
+        return torch.nn.functional.cross_entropy(logits, y)
+
+def my_dataset_factory(rank, num_nodes, train_dataset: bool):
+    dataset = MyDataset(split="train" if train_dataset else "val")
+    # shard by rank if needed:
+    # indices = range(rank, len(dataset), num_nodes)
+    # dataset = torch.utils.data.Subset(dataset, indices)
+    return dataset
+
+model = MyModel()
+trainer = Trainer(model, my_dataset_factory, my_dataset_factory)
+
+strategy = SimpleReduceStrategy(
+    optim_spec=OptimSpec(torch.optim.AdamW, lr=3e-4),
+    lr_scheduler="lambda_cosine",
+    lr_scheduler_kwargs={"warmup_steps": 1000, "cosine_anneal": True},
+    max_norm=1.0,
+)
+
+trainer.fit(
+    num_epochs=1,
+    max_steps=10_000,
+    strategy=strategy,
+    num_nodes=4,
+    device="",                   # auto: cuda/mps/cpu
+    batch_size=64,
+    minibatch_size=None,         # let EXO Gym pick a safe size
+    val_size=512,
+    val_interval=100,
+    wandb_project="myproject",
+    run_name="myrun",
+)
+```
+
+Appendix — What’s where in the repo
+-----------------------------------
+- **Top‑level:**
+  - `README.md` — overview & usage.
+  - `pyproject.toml` — package metadata and dependencies.
+  - `docs/README.md` — technical explanation of Trainer/TrainNode/Strategy.
+- **`exogym/`**
+  - `trainer.py` — orchestration, mp.spawn, memory auto‑probe.
+  - `train_node.py` — per‑rank loop, dataloaders, eval, logging, checkpoints.
+  - `common.py` — serialized `TrainConfig` used to pass settings to ranks.
+  - `aux/` — logging (W&B/CSV), checkpointing, correlation, utilities.
+  - `strategy/` — base `Strategy`, composable strategies, built‑ins, comms wrappers.
+- **`example/`**
+  - `mnist.py` — quick comparison (DDP, DiLoCo, SPARTA) with CSV plots helper.
+  - `nanogpt_train.py` — language modeling; also shows dataset factories & run naming.
+  - `image_train.py` — image classification with timm & HF Datasets.
+  - `grid_lr.py`, `grid_batchsize.py` — parallel sweep launchers.
+  - `shakespeare_inference.py` — example generation on saved NanoGPT checkpoints.
+  - `nanogpt/` — tiny GPT implementation and dataset prepro for Shakespeare/OWT.
+
+That’s it — you can now read/modify EXO Gym, add new strategies, or plug in your models/datasets.

@@ -8,7 +8,7 @@ from typing import Union, Callable
 
 from exogym.common import TrainConfig
 from exogym.strategy.strategy import Strategy
-from exogym.aux import WandbLogger, CSVLogger
+from exogym.aux import Logger, WandbLogger, CSVLogger
 from exogym.strategy.communicate import all_reduce, broadcast
 from exogym.aux import LogModule, CheckpointMixin, CorrelationMixin
 
@@ -235,7 +235,16 @@ class TrainNode(LogModule, CheckpointMixin, CorrelationMixin):
         self.strategy.max_steps = self.max_steps
 
         if self.rank == 0:
-            if self.kwargs.get("wandb_project", None) is not None:
+            if self.kwargs.get("disable_logging", False):
+                # Use base Logger for no-op logging during profiling
+                self.logger = Logger(
+                    model=self.model,
+                    max_steps=self.max_steps,
+                    strategy=self.strategy,
+                    train_node=self,
+                    init_tqdm=False,
+                )
+            elif self.kwargs.get("wandb_project", None) is not None:
                 self.logger = WandbLogger(
                     model=self.model,
                     max_steps=self.max_steps,

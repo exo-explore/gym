@@ -2,9 +2,34 @@ from exogym.trainer import Trainer
 from nanogpt import GPT, GPTConfig, get_dataset
 from exogym.strategy.optim import OptimSpec
 
+import os
 import argparse
 import torch
 from functools import partial
+
+
+def get_dataset_defaults(dataset_name):
+    """Get default configuration for a specific dataset."""
+    defaults = {
+        "owt": {
+            "start_pc": 0.0,
+            "end_pc": 0.04,
+            "val_start_pc": 0.99,
+            "val_end_pc": 1.0,
+            "model_size": "base",
+            "max_steps": 30000,
+        },
+        "shakespeare": {
+            "start_pc": 0.0,
+            "end_pc": 0.9,
+            "val_start_pc": 0.9,
+            "val_end_pc": 1.0,
+            "model_size": "small",
+            "max_steps": 5000,
+        },
+    }
+    # Return defaults for the dataset, or empty dict if not defined
+    return defaults.get(dataset_name, {})
 
 
 def gen_run_name(args, strategy):
@@ -58,10 +83,10 @@ def arg_parse():
         default="owt",
         help="which dataset to use (shakespeare, wikitext, code, owt)",
     )
-    parser.add_argument("--start_pc", type=float, default=0.0)
-    parser.add_argument("--end_pc", type=float, default=0.9)
-    parser.add_argument("--val_start_pc", type=float, default=0.9)
-    parser.add_argument("--val_end_pc", type=float, default=1.0)
+    parser.add_argument("--start_pc", type=float, default=None)
+    parser.add_argument("--end_pc", type=float, default=None)
+    parser.add_argument("--val_start_pc", type=float, default=None)
+    parser.add_argument("--val_end_pc", type=float, default=None)
     parser.add_argument("--block_size", type=int, default=1024)
 
     # Training arguments
@@ -71,7 +96,7 @@ def arg_parse():
     parser.add_argument(
         "--model_size",
         type=str,
-        default="base",
+        default=None,
         choices=["small", "base", "medium", "large", "xl"],
     )
     parser.add_argument("--dropout", type=float, default=None)
@@ -82,18 +107,20 @@ def arg_parse():
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--max_norm", type=float, default=1.0)
     parser.add_argument("--warmup_steps", type=int, default=1000)
-    parser.add_argument("--max_steps", type=int, default=30000)
+    parser.add_argument("--max_steps", type=int, default=None)
     parser.add_argument("--cosine_anneal", action="store_true")
 
     # Logging and reproducibility
     parser.add_argument("--seed", type=int, default=1337)
-    parser.add_argument("--wandb_project", type=str, default='rebuttal')
+    parser.add_argument("--wandb_project", type=str, default=None)
     parser.add_argument("--run_name", type=str, default=None)
     parser.add_argument("--val_size", type=int, default=256)
     parser.add_argument("--val_interval", type=int, default=100)
     parser.add_argument("--correlation_interval", type=int, default=None)
     parser.add_argument("--checkpoint_interval", type=int, default=None)
     parser.add_argument("--save_dir", type=str, default="./checkpoints")
+    parser.add_argument("--start_port", type=int, default=15000)
+    parser.add_argument("--log_x_axis", type=str, default="step", choices=["step", "examples"], help="X-axis for wandb logging")
 
     # Strategy selection
     parser.add_argument(
@@ -269,6 +296,23 @@ def main():
     parser = arg_parse()
     args = parser.parse_args()
 
+    # Get dataset-specific defaults
+    dataset_defaults = get_dataset_defaults(args.dataset)
+    
+    # Apply dataset defaults for any unset arguments
+    if args.start_pc is None:
+        args.start_pc = dataset_defaults.get("start_pc", 0.0)
+    if args.end_pc is None:
+        args.end_pc = dataset_defaults.get("end_pc", 0.9)
+    if args.val_start_pc is None:
+        args.val_start_pc = dataset_defaults.get("val_start_pc", 0.9)
+    if args.val_end_pc is None:
+        args.val_end_pc = dataset_defaults.get("val_end_pc", 1.0)
+    if args.model_size is None:
+        args.model_size = dataset_defaults.get("model_size", "small")
+    if args.max_steps is None:
+        args.max_steps = dataset_defaults.get("max_steps", 5000)
+
     ## Example of dataset factory for OWT.
     if args.dataset == "owt" or False:
         dataset_factory = partial(
@@ -315,28 +359,37 @@ def main():
         model,
         train_dataset,
         val_dataset,
+        start_port=args.start_port,
     )
 
     # Create strategy based on selection
     strategy = create_strategy(args)
 
     # Train
-    trainer.fit(
+    model = trainer.fit(
         num_epochs=args.epochs,
         max_steps=args.max_steps,
         strategy=strategy,
         num_nodes=args.num_nodes,
         device=args.device,
         batch_size=args.batch_size,
-        minibatch_size=args.minibatch_size or args.batch_size,
+        minibatch_size=args.minibatch_size,
         shuffle=(args.dataset != "owt"),
         val_size=args.val_size,
         val_interval=args.val_interval,
         correlation_interval=args.correlation_interval,
         save_dir=args.save_dir,
         wandb_project=args.wandb_project,
-        run_name=args.run_name or gen_run_name(args, args.strategy)
+        run_name=args.run_name or gen_run_name(args, args.strategy),
+        log_x_axis=args.log_x_axis
     )
+
+    save_dir = "checkpoints"
+    os.makedirs(save_dir, exist_ok=True)
+    run_name = args.run_name or gen_run_name(args, args.strategy)
+    model_path = os.path.join(save_dir, f"{run_name}_model.pt")
+    torch.save(model.state_dict(), model_path)
+    print(f"Model saved to {model_path}")
 
 
 if __name__ == "__main__":

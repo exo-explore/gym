@@ -2,7 +2,7 @@
 
 # EXO Gym
 
-<img src="docs/macs.png" alt="EXO Gym" width="50%">
+<img src="docs/imagination.png" alt="EXO Gym" width="50%">
 
 <!-- New image ideas: A macbook with a loss curve on it, with a 'thinking bubbles' coming out of the macbook, and in the bubble there is a stack of 4 H100 GPUs. It's like the laptop is imagining the cluster.  -->
 
@@ -40,49 +40,38 @@ Implementing a new algo from scratch takes as little at 5 lines 🚀 -->
 
 ## Installation
 
-### Basic Installation
-Install with core dependencies only:
-```bash
-pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ exogym
-```
+### Dependencies
 
-### Installation with Optional Features
+- `python>=3.10`
 
-Optional feature flags allowed are:
+### Installation
 
-```bash
-wandb,gpt,demo,examples,dev,all
-```
-
-For example, `pip install exogym[demo]`
-
-### Development Installation
-
-To install for development:
+To install:
 ```bash
 git clone https://github.com/exo-explore/gym.git exogym
 cd exogym
-pip install -e ".[dev]"
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+```
+
+### Pip Installation
+```bash
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ exogym
 ```
 
 ## Usage
 
 ### Example Scripts
 
-MNIST comparison of DDP, DiLoCo, and SPARTA:
-
-```bash
-python example/mnist.py
-```
-
-NanoGPT Shakespeare DiLoCo:
-
-```bash
-python example/nanogpt_train.py --dataset shakespeare --strategy diloco
-```
-
+| Example | Result |
+| ------- | ------ |
+| **MNIST Comparison** <br><br> Compare DDP, DiLoCo, SPARTA on MNIST dataset. Runs in <2 mins on a M4 Mac Mini. <br><br> ```bash<br>python example/mnist.py<br>``` | <img src="docs/mnist_compare.png" alt="MNIST Training Comparison" width="100%"> |
+| **NanoGPT OpenWebText** <br><br> Train a NanoGPT-style transformer on the OpenWebText dataset. <br><br> ```bash<br>python example/nanogpt_train.py --dataset owt --strategy diloco<br>``` | <img src="docs/OWT%20DiLoCo%20N=4.png" alt="OWT DiLoCo N=4" width="100%"> |
+| **Shakespeare DiLoCo Scaling K** <br><br> How does DiLoCo compare for different device count (K)? This script compares DiLoCo for different device counts, normalized by FLOPs. <br><br> ```bash<br>python example/diloco_scaling.py --dataset shakespeare<br>``` <br><br> We can generate text with the model that has just been trained as so: <br><br> ```bash<br>python example/nanogpt/shakespeare_inference.py<br>``` | <img src="docs/diloco-batchsize.png" alt="Shakespeare Training Results" width="100%"> |
 
 ### Custom Training
+
+Strategies (eg. DiLoCo, SPARTA) are portable across domains. A custom dataset and model can be trained with a distributed algorithm like so:
 
 ```python
 from exogym import Trainer
@@ -145,3 +134,19 @@ class QuantizationStrategy(Strategy):
 ## Technical Details
 
 For further details on how EXO Gym works under-the-hood, please see [docs/](docs/README.md).
+
+## Citation
+
+If you use EXO Gym in your research, please cite:
+
+```bibtex
+@software{exogym2025,
+  title={EXO Gym},
+  author={Matt Beton, Mohamed Baioumy, Matt Reed, Seth Howes, Alex Cheema},
+  year={2025},
+  url={https://github.com/exo-explore/gym}
+}
+```
+
+
+

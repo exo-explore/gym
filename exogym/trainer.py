@@ -6,9 +6,9 @@ from exogym.train_node import TrainNode
 from exogym.strategy import Strategy
 from exogym.common import TrainConfig
 from exogym.aux.utils import print_dataset_size, _average_model_states
+from exogym.minibatch_probe import find_minibatch_size_isolated
 
 import os
-from abc import abstractmethod
 import copy
 from dataclasses import dataclass
 from typing import Optional, List, Any, Dict, Union, Callable
@@ -101,11 +101,16 @@ class Trainer:
             Callable[[int, int, bool], torch.utils.data.Dataset],
         ],
         start_port: Optional[int] = None,
+        device: str = None,
+        devices: list[int] = None,
     ):
         self.model_orig = model
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.port = start_port if start_port is not None else 12355
+        self.device = device
+        self.devices = devices
+        self._minibatch_cache = {}
 
     def fit(
         self,
@@ -113,10 +118,8 @@ class Trainer:
         strategy: Strategy,
         num_nodes: int,
         max_steps: int = None,
-        device: str = None,
-        devices: list[int] = None,
         batch_size: int = 16,
-        minibatch_size: int = 16,
+        minibatch_size: int = None,
         shuffle: bool = True,
         val_size: int = 64,
         val_interval: int = 100,
@@ -127,21 +130,15 @@ class Trainer:
         dataloader_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
-        """
-        Train the model. For single process training (num_nodes=1), runs directly.
-        For multi-process training, delegates to launch_ddp for notebook safety.
-        Returns the final trained model (averaged across nodes for multi-node training).
-        """
         # assert val_size // batch_size > 0, f"val_size must be geq batch_size: {val_size} // {batch_size}"
         assert batch_size > 0, 'local batch size needs to be nonzero'
-        assert minibatch_size <= batch_size, f'minibatch_size ({minibatch_size}) must be <= batch_size ({batch_size}) for gradient accumulation to work properly'
-
-        self.port += 1
+        if minibatch_size is not None:
+            assert minibatch_size <= batch_size, f'minibatch_size ({minibatch_size}) must be <= batch_size ({batch_size}) for gradient accumulation'
 
         # Move a *copy* of the model to CPU so that pickling for mp.spawn does not attempt to share GPU storage.
         cpu_model = copy.deepcopy(self.model_orig).cpu()
 
-        config = TrainConfig(
+        self.config = TrainConfig(
             model=cpu_model,
             train_dataset=self.train_dataset,
             val_dataset=self.val_dataset,
@@ -150,8 +147,8 @@ class Trainer:
             num_nodes=num_nodes,
             max_steps=max_steps,
             port=self.port,
-            device=device,
-            devices=devices,
+            device=self.device,
+            devices=self.devices,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
             shuffle=shuffle,
@@ -164,20 +161,33 @@ class Trainer:
             dataloader_kwargs=dataloader_kwargs or {},
             kwargs=kwargs,
         )
+
+        # Auto-detect minibatch_size if not provided
+        if minibatch_size is None:
+            force_recalculate = kwargs.get('force_minibatch_recalculate', False)
+            minibatch_size = self.find_minibatch_size(
+                num_nodes,
+                batch_size,
+                force_recalculate=force_recalculate,
+            )
+            self.config.minibatch_size = minibatch_size
+
+        self.port += 1
+
         
         manager = mp.Manager()
         result_queue = manager.Queue()
 
         mp.spawn(
             _worker,
-            args=(config, result_queue),
-            nprocs=config.num_nodes,
+            args=(self.config, result_queue),
+            nprocs=self.config.num_nodes,
             start_method="spawn",
             join=True,
         )
 
         model_states = {}
-        for _ in range(config.num_nodes):
+        for _ in range(self.config.num_nodes):
             rank, state_dict = result_queue.get()
             model_states[rank] = state_dict
 
@@ -187,4 +197,28 @@ class Trainer:
         final_model.load_state_dict(averaged_state_dict)
         return final_model
 
-
+    def clear_minibatch_cache(self):
+        """Clear the cached minibatch size results."""
+        self._minibatch_cache.clear()
+        print("Minibatch size cache cleared.")
+    
+    def find_minibatch_size(self, num_nodes: int, batch_size: int, force_recalculate: bool = False):
+        cache_key = (num_nodes, batch_size)
+        
+        if not force_recalculate and cache_key in self._minibatch_cache:
+            cached_size = self._minibatch_cache[cache_key]
+            print(f'Using cached minibatch_size={cached_size} for batch_size={batch_size}, num_nodes={num_nodes}')
+            return cached_size
+        
+        # Use the isolated minibatch probe
+        minibatch_size = find_minibatch_size_isolated(
+            self.config,
+            num_nodes,
+            batch_size,
+            devices=self.devices,
+            device=self.device,
+            port=self.port
+        )
+        
+        self._minibatch_cache[cache_key] = minibatch_size
+        return minibatch_size 
