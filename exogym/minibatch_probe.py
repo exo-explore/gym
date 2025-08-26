@@ -8,9 +8,10 @@ import copy
 import psutil
 import time
 import threading
+
 from exogym.train_node import TrainNode
 from exogym.common import TrainConfig
-
+from exogym.utils import init_process_group_portsafe
 
 def _get_mps_allocated_bytes():
     """Get MPS allocated memory in bytes, defensively handling API variations."""
@@ -92,10 +93,6 @@ def _minibatch_probe_worker(config: TrainConfig, batch_size: int, num_nodes: int
     import os, gc, torch, torch.distributed as dist
     from exogym.train_node import TrainNode
 
-    # Ensure isolated process group
-    os.environ.setdefault("MASTER_ADDR", "localhost")
-    os.environ.setdefault("MASTER_PORT", str(int(os.environ.get("MASTER_PORT", "29500")) + 199))
-
     # Single-rank probe configuration
     cfg = copy.deepcopy(config)
     cfg.num_nodes = 1
@@ -115,7 +112,7 @@ def _minibatch_probe_worker(config: TrainConfig, batch_size: int, num_nodes: int
 
     # Initialize process group
     backend = "nccl" if ("cuda" in str(cfg.device)) else "gloo"
-    dist.init_process_group(backend, rank=0, world_size=1)
+    init_process_group_portsafe(backend, 0, 1)
 
     # Move model/strategy to device
     cfg.model = cfg.model.to(cfg.device)
@@ -140,6 +137,7 @@ def _minibatch_probe_worker(config: TrainConfig, batch_size: int, num_nodes: int
     def try_minibatch(minib):
         """Try running with a specific minibatch size."""
         cfg.minibatch_size = minib
+        print(f'Testing minibatch size {minib}')
         
         try:
             # Clear caches before attempt
@@ -215,7 +213,7 @@ def find_minibatch_size_isolated(config: TrainConfig, num_nodes: int, batch_size
     Find optimal minibatch size using subprocess isolation.
     Always runs in a subprocess to ensure clean memory state.
     """
-    print("Profiling minibatch size in an isolated subprocess...")
+    print("Profiling training to find optimal minibatch size...")
     
     ctx = multiprocessing.get_context("spawn")
     q = ctx.Queue()

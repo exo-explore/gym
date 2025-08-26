@@ -7,6 +7,7 @@ from exogym.strategy import Strategy
 from exogym.common import TrainConfig
 from exogym.aux.utils import print_dataset_size, _average_model_states
 from exogym.minibatch_probe import find_minibatch_size_isolated
+from exogym.utils import init_process_group_portsafe
 
 import os
 import copy
@@ -38,7 +39,7 @@ def _build_connection(config: TrainConfig):
         if config.devices is None:
             config.devices = range(torch.cuda.device_count())
 
-        dist.init_process_group(
+        init_process_group_portsafe(
             "nccl" if len(config.devices) == config.num_nodes else "gloo",
             rank=config.rank,
             world_size=config.num_nodes,
@@ -48,10 +49,10 @@ def _build_connection(config: TrainConfig):
         )
         torch.cuda.set_device(config.device)
     elif config.device == "cpu":
-        dist.init_process_group("gloo", rank=config.rank, world_size=config.num_nodes)
+        init_process_group_portsafe("gloo", rank=config.rank, world_size=config.num_nodes)
         config.device = torch.device("cpu")
     elif config.device == "mps":
-        dist.init_process_group("gloo", rank=config.rank, world_size=config.num_nodes)
+        init_process_group_portsafe("gloo", rank=config.rank, world_size=config.num_nodes)
         config.device = torch.device("mps")
     else:
         raise ValueError(f"Invalid device type: {config.device}")
