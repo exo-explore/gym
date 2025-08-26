@@ -65,9 +65,9 @@ pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://
 
 | Example | Result |
 | ------- | ------ |
-| **MNIST Comparison** <br><br> Compare DDP, DiLoCo, SPARTA on MNIST dataset. Runs in <2 mins on a M4 Mac Mini. <br><br> ```bash<br>python example/mnist.py<br>``` | <img src="docs/mnist_compare.png" alt="MNIST Training Comparison" width="100%"> |
-| **NanoGPT OpenWebText** <br><br> Train a NanoGPT-style transformer on the OpenWebText dataset. <br><br> ```bash<br>python example/nanogpt_train.py --dataset owt --strategy diloco<br>``` | <img src="docs/OWT%20DiLoCo%20N=4.png" alt="OWT DiLoCo N=4" width="100%"> |
-| **Shakespeare DiLoCo Scaling K** <br><br> How does DiLoCo compare for different device count (K)? This script compares DiLoCo for different device counts, normalized by FLOPs. <br><br> ```bash<br>python example/diloco_scaling.py --dataset shakespeare<br>``` <br><br> We can generate text with the model that has just been trained as so: <br><br> ```bash<br>python example/nanogpt/shakespeare_inference.py<br>``` | <img src="docs/diloco-batchsize.png" alt="Shakespeare Training Results" width="100%"> |
+| **MNIST Comparison** <br><br> Compare DDP, DiLoCo, SPARTA on MNIST dataset. Runs in <2 mins on a M4 Mac Mini. <br><br> ```python example/mnist.py``` | <img src="docs/mnist_compare.png" alt="MNIST Training Comparison" width="100%"> |
+| **NanoGPT OpenWebText** <br><br> Train a NanoGPT-style transformer on the OpenWebText dataset. <br><br> ```python example/nanogpt_train.py --dataset owt --strategy diloco``` | <img src="docs/OWT%20DiLoCo%20N=4.png" alt="OWT DiLoCo N=4" width="100%"> |
+| **Shakespeare DiLoCo Scaling K** <br><br> How does DiLoCo compare for different device count (K)? This script compares DiLoCo for different device counts, normalized by FLOPs. <br><br> ```python example/diloco_scaling.py --dataset shakespeare``` <br><br> We can generate text with the model that has just been trained as so: <br><br> ```python example/nanogpt/shakespeare_inference.py``` | <img src="docs/diloco-batchsize.png" alt="Shakespeare Training Results" width="100%"> |
 
 ### Custom Training
 
