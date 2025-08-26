@@ -12,14 +12,17 @@ def init_process_group_portsafe(backend: str, rank: int, world_size: int, retrie
             "GLOO_SOCKET_IFNAME":"lo0",
         })
 
+    errors = []
 
     i = 0
     while i < retries:
         try:
             os.environ["MASTER_PORT"] = str(port)
             dist.init_process_group(backend, rank=rank, world_size=world_size)
-            break
+            return
         except Exception as e:
-            print(f'error when calling init_process_group: {e}')
+            errors.append(str(e))
             port += 1
             i += 1
+
+    print(f'init_process_group failed too many times. Errors accumulated: {errors}')
