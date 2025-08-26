@@ -13,12 +13,12 @@ Simulate a GPU cluster with just your laptop! For example:
 
 </div>
 
-- Simulate training with SPARTA with a cluster of 4 Mac Studios connected over Ethernet
-- Simulate training with DiLoCo on a cluster of 16 H100's connected over the internet
+- Simulate training with [SPARTA](https://openreview.net/forum?id=stFPf3gzq1) with a cluster of 4 Mac Studios connected over Ethernet
+- Simulate training with [DiLoCo](https://arxiv.org/abs/2311.08105) on a cluster of 16 H100's connected over the internet
 
-## What Does EXO Gym Do?
+## Why EXO Gym?
 
-- Simulate distributed training without setting up distributed clusters; avoid Kubernetes, GPU hosting, etc.
+- Simulate distributed training without setting up distributed clusters; avoid Kubernetes, Docker, and GPU hosting.
 - Fast iteration: implementing a new distributed training algo from scratch takes as little as 5 lines
 - Scale up number of nodes by changing a single parameter
 
@@ -54,10 +54,10 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
 
-### Pip Installation
+<!-- ### Pip Installation
 ```bash
 pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ exogym
-```
+``` -->
 
 ## Usage
 
