@@ -1,6 +1,7 @@
 <div align="center">
 
-# EXO Gym
+<!-- # EXO Gym <img src="docs/exogym_logo.png" alt="EXO Gym Logo" height="50" align="top"> -->
+# <img src="docs/exogym_logo.png" alt="EXO Gym Logo" height="60" align="top"> Gym
 
 <img src="docs/imagination.png" alt="EXO Gym" width="50%">
 
@@ -10,22 +11,21 @@
 ##### EXO Gym: Simulate distributed training on any hardware configuration, at any scale.
 
 Simulate a GPU cluster with just your laptop! For example:
-
 </div>
 
-- Simulate training with [SPARTA](https://openreview.net/forum?id=stFPf3gzq1) with a cluster of 4 Mac Studios connected over Ethernet
-- Simulate training with [DiLoCo](https://arxiv.org/abs/2311.08105) on a cluster of 16 H100's connected over the internet
+- Use a laptop to simulate 4-node training of an image classification model using [DiLoCo](https://arxiv.org/abs/2311.08105)
+- Use a single node with 4x 4090 GPUs to simulate 16-node training of a language model using [SPARTA](https://openreview.net/forum?id=stFPf3gzq1)
+
+
 
 ## Why EXO Gym?
 
 - Simulate distributed training without setting up distributed clusters; avoid Kubernetes, Docker, and GPU hosting.
 - Fast iteration: implementing a new distributed training algo from scratch takes as little as 5 lines
 - Scale up number of nodes by changing a single parameter
+- Switch hardware from a laptop to a multi-GPU node - with no code changes
 
-<!-- Bullet this -->
-<!-- Forget about high GPU bills 💸 and painful Kubernetes setup 🤯. 
-Want to scale up from 4 to 8 nodes? Just change a single parameter 🔧 
-Implementing a new algo from scratch takes as little at 5 lines 🚀 -->
+EXO Gym spins up multiple virtual PyTorch nodes on the hardware available. The virtual nodes train in parallel across the devices, and can communicate with PyTorch primitives such as `all_reduce`.
 
 ## Supported Algorithms
 
@@ -67,7 +67,7 @@ pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://
 | ------- | ------ |
 | **MNIST Comparison** <br><br> Compare DDP, DiLoCo, SPARTA on MNIST dataset. Runs in <2 mins on a M4 Mac Mini. <br><br> ```python example/mnist.py``` | <img src="docs/mnist_compare.png" alt="MNIST Training Comparison" width="100%"> |
 | **NanoGPT OpenWebText** <br><br> Train a NanoGPT-style transformer on the OpenWebText dataset. <br><br> ```python example/nanogpt_train.py --dataset owt --strategy diloco``` | <img src="docs/OWT%20DiLoCo%20N=4.png" alt="OWT DiLoCo N=4" width="100%"> |
-| **Shakespeare DiLoCo Scaling K** <br><br> How does DiLoCo compare for different device count (K)? This script compares DiLoCo for different device counts, normalized by FLOPs. <br><br> ```python example/diloco_scaling.py --dataset shakespeare``` <br><br> We can generate text with the model that has just been trained as so: <br><br> ```python example/nanogpt/shakespeare_inference.py``` | <img src="docs/diloco-batchsize.png" alt="Shakespeare Training Results" width="100%"> |
+| **Shakespeare DiLoCo Scaling K** <br><br> How does DiLoCo compare for different device count (K)? This script compares DiLoCo for different device counts, normalized by FLOPs. <br><br> ```python example/diloco_scaling.py --dataset shakespeare``` <br><br> We can generate text with the model that we trained using: <br><br> ```python example/nanogpt/shakespeare_inference.py``` | <img src="docs/diloco-batchsize.png" alt="Shakespeare Training Results" width="100%"> |
 
 ### Custom Training
 
